@@ -1,0 +1,8 @@
+FROM ghcr.io/mlflow/mlflow:latest
+
+# Copy entrypoint script
+COPY mlflow-entrypoint.sh /mlflow-entrypoint.sh
+RUN chmod +x /mlflow-entrypoint.sh
+
+# Set entrypoint
+ENTRYPOINT ["/mlflow-entrypoint.sh"]
