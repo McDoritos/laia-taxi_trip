@@ -18,10 +18,8 @@ import pyarrow.parquet as pq
 
 PATH_DATASET = r"F:\Universidade\LAIA\laia-taxi_trip\Dataset"
 
-MY_IP = "10.17.0.207"
-
 # MLflow remoto (alterar IP conforme o servidor)
-mlflow.set_tracking_uri(f"http://{MY_IP}:5050")
+mlflow.set_tracking_uri("http://localhost:5050")
 
 # Nome do experimento
 experiment_name = "taxi_duration_prediction"
@@ -188,6 +186,6 @@ with mlflow.start_run(run_name="RandomForestRegressor_Training") as run:
     model_uri = f"runs:/{run.info.run_id}/model"
     registered_model = mlflow.register_model(model_uri, "taxi_rf_model")
 
-    print(f"Modelo registrado: {registered_model.name} (versão {registered_model.version})")
+    print(f"✅ Modelo registrado: {registered_model.name} (versão {registered_model.version})")
 
 print("\nExperimento finalizado com sucesso!")
