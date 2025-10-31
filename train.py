@@ -1,5 +1,4 @@
 import mlflow
-import mlflow.sklearn
 from sklearn.datasets import load_iris
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import train_test_split, RandomizedSearchCV
@@ -69,7 +68,7 @@ def readDataset(root=PATH_DATASET, sample_frac_per_file=0.05):
             columns=[c for c in use_cols if c in pq.ParquetFile(fpath).schema.names],
         )
         if sample_frac_per_file and 0 < sample_frac_per_file < 1:
-            df = df.sample(frac=sample_frac_per_file, random_state=42)
+            df = df.sample(frac=sample_frac_per_file, random_state=123) # 42, 123
         sampled_dfs.append(df)
 
     df = pd.concat(sampled_dfs, ignore_index=True)
@@ -142,13 +141,13 @@ def prediction_table(model, X, y_true, n=None, sort_by_error=False, ascending=Fa
 # TREINAMENTO E TRACKING
 # ============================================================
 
-X, y = readDataset(sample_frac_per_file=0.01)
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
+X, y = readDataset(sample_frac_per_file=0.001)
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=123) # 42, 123
 
 # Inicia o run de MLflow
 with mlflow.start_run(run_name="RandomForestRegressor_Training") as run:
     n_estimators = 100
-    max_depth = None
+    max_depth = 10
     min_samples_split = 10
 
     mlflow.log_param("n_estimators", n_estimators)
@@ -160,7 +159,7 @@ with mlflow.start_run(run_name="RandomForestRegressor_Training") as run:
         max_depth=max_depth,
         min_samples_split=min_samples_split,
         n_jobs=-1,
-        random_state=42
+        random_state=123 # 42, 123
     )
 
     print("Training RandomForest...")
@@ -181,9 +180,12 @@ with mlflow.start_run(run_name="RandomForestRegressor_Training") as run:
     # Salvar tabela de predições
     pred_path = "predictions_sample.csv"
     prediction_table(model, X_test, y_test, n=50, sort_by_error=True, save_csv=pred_path)
+
+    print(f"Saving predictions to mlflow {pred_path}...")
     mlflow.log_artifact(pred_path)
 
     # Registrar modelo no MLflow Model Registry
+    print("Registering model in MLflow Model Registry...")
     mlflow.sklearn.log_model(model, "model")
     model_uri = f"runs:/{run.info.run_id}/model"
     registered_model = mlflow.register_model(model_uri, "taxi_rf_model")
