@@ -10,14 +10,19 @@ import numpy as np
 import os
 import glob
 import pyarrow.parquet as pq
+from dotenv import load_dotenv
+import os
 
 # ============================================================
 # CONFIGURAÇÕES INICIAIS
 # ============================================================
 
-PATH_DATASET = r"F:\Universidade\LAIA\laia-taxi_trip\Dataset"
+# Load variables from .env file
+load_dotenv()
 
-MY_IP = "10.17.0.207"
+# Read the variables
+PATH_DATASET = os.getenv('PATH_DATASET')
+MY_IP = os.getenv('MY_IP')
 
 # MLflow remoto (alterar IP conforme o servidor)
 mlflow.set_tracking_uri(f"http://{MY_IP}:5050")
