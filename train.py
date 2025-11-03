@@ -182,7 +182,7 @@ with mlflow.start_run(run_name="RandomForestRegressor_Training") as run:
 
     print(f"Metrics:\n MAE={mae:.3f}, MSE={mse:.3f}, R2={r2:.3f}")
 
-    # Salvar tabela de predições
+    # Guardar a tabela de predições
     pred_path = "predictions_sample.csv"
     prediction_table(model, X_test, y_test, n=50, sort_by_error=True, save_csv=pred_path)
 
@@ -191,10 +191,19 @@ with mlflow.start_run(run_name="RandomForestRegressor_Training") as run:
 
     # Registrar modelo no MLflow Model Registry
     print("Registering model in MLflow Model Registry...")
-    mlflow.sklearn.log_model(model, "model")
+
+    # --- THIS IS THE FIX ---
+    # Provide a sample of the training data as an input_example
+    # This allows MLflow to infer the model's signature (inputs and outputs)
+    input_example = X_train.head()
+    mlflow.sklearn.log_model(
+        sk_model=model,
+        artifact_path="model",
+        input_example=input_example
+    )
+    # -----------------------
+
     model_uri = f"runs:/{run.info.run_id}/model"
     registered_model = mlflow.register_model(model_uri, "taxi_rf_model")
 
     print(f"Modelo registrado: {registered_model.name} (versão {registered_model.version})")
-
-print("\nExperimento finalizado com sucesso!")
