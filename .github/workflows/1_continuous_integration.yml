@@ -1,0 +1,85 @@
+name: 1 - Continuous Integration
+run-name: "${{ github.workflow }}"
+
+permissions: write-all
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+  workflow_dispatch:
+
+env:
+  REGISTRY: ${{ vars.REGISTRY }}
+  MLFLOW_TRACKING_URI: ${{ vars.MLFLOW_TRACKING_URI }}
+  MLFLOW_EXPERIMENT_NAME: ${{ vars.MLFLOW_EXPERIMENT_NAME }}
+  MLFLOW_MODEL_NAME: ${{ vars.MLFLOW_MODEL_NAME }}
+
+jobs:
+  test-unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.13' }
+      - run: pip install uv
+      - run: uv sync
+      - run: uv run pytest tests/test_api.py -v
+      - run: uv run pytest tests/test_train.py -v
+
+  build-images:
+    # Passed tests, now build docker images for training and serving
+    runs-on: ubuntu-latest
+    needs: test-unit
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+
+      # Build training image and upload to artifacts for use in continuous delivery
+      - name: Build training image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./training/Dockerfile
+          platforms: linux/amd64
+          push: false
+          tags: training:${{ github.sha }}
+          outputs: type=docker,dest=/tmp/training.tar
+      - run: docker load --input /tmp/training.tar
+
+      # Build serving image and upload to artifacts for use in continuous delivery
+      - name: Build serving image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./serving/Dockerfile.flask
+          platforms: linux/amd64
+          push: false
+          tags: serving:${{ github.sha }}
+          outputs: type=docker,dest=/tmp/serving.tar
+      - run: docker load --input /tmp/serving.tar
+
+      # Log in to GitHub Container Registry (GHCR)
+      # This is the repository where we will upload our images
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Tag training image with current commit sha
+      # This image will not be used anymore, thus will not be promoted to staging or production so it is linked only to the commit
+      # Push training image to repository
+      - name: Push training image
+        run: |
+          docker tag training:${{ github.sha }} ${{ env.REGISTRY }}/mcdoritos/aail-practical_8/training:${{ github.sha }}
+          docker push ${{ env.REGISTRY }}/mcdoritos/aail-practical_8/training:${{ github.sha }}
+
+      # Tag serving image with commit sha; this image will be used for further testing in the following workflows
+      # Push serving image to repository
+      - name: Push serving staging image
+        run: |
+          docker tag serving:${{ github.sha }} ${{ env.REGISTRY }}/mcdoritos/aail-practical_8/serving:${{ github.sha }}
+          docker push ${{ env.REGISTRY }}/mcdoritos/aail-practical_8/serving:${{ github.sha }}

@@ -1,4 +1,5 @@
 import mlflow
+from mlflow.tracking import MlflowClient
 from sklearn.datasets import load_iris
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import train_test_split, RandomizedSearchCV
@@ -15,18 +16,31 @@ import pyarrow.parquet as pq
 # CONFIGURAÇÕES INICIAIS
 # ============================================================
 
+COMMIT_SHA = os.getenv('COMMIT_SHA')
+if not COMMIT_SHA:
+    raise EnvironmentError("Missing required env var: COMMIT_SHA")
+
+MODEL_NAME = os.getenv('MLFLOW_MODEL_NAME')
+if not MODEL_NAME:
+    raise EnvironmentError("Missing required env var: MLFLOW_MODEL_NAME")
+
+EXP_NAME = os.getenv('MLFLOW_EXPERIMENT_NAME')
+if not EXP_NAME:
+    raise EnvironmentError("Missing required env var: MLFLOW_EXPERIMENT_NAME")
+
+TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI")
+if not TRACKING_URI:
+    raise EnvironmentError("Missing required env var: MLFLOW_TRACKING_URI")
+
 PATH_DATASET = r"F:\Universidade\LAIA\laia-taxi_trip\Dataset"
 
 MY_IP = "10.17.0.207"
 
 # MLflow remoto (alterar IP conforme o servidor)
-mlflow.set_tracking_uri(f"http://{MY_IP}:5050")
-
-# Nome do experimento
-experiment_name = "taxi_duration_prediction"
+mlflow.set_tracking_uri(TRACKING_URI)
 
 # Criar ou obter o experimento
-mlflow.set_experiment(experiment_name)
+mlflow.set_experiment(EXP_NAME)
 
 # ============================================================
 # FUNÇÕES AUXILIARES
@@ -184,12 +198,44 @@ with mlflow.start_run(run_name="RandomForestRegressor_Training") as run:
     print(f"Saving predictions to mlflow {pred_path}...")
     mlflow.log_artifact(pred_path)
 
+    # Infere model signature
+    signature = mlflow.models.infer_signature(
+                X_train, model.predict(X_train)
+            )
     # Registrar modelo no MLflow Model Registry
     print("Registering model in MLflow Model Registry...")
-    mlflow.sklearn.log_model(model, "model")
-    model_uri = f"runs:/{run.info.run_id}/model"
-    registered_model = mlflow.register_model(model_uri, "taxi_rf_model")
 
-    print(f"Modelo registrado: {registered_model.name} (versão {registered_model.version})")
+    mlflow.sklearn.log_model(
+        model, 
+        name="model",
+        signature=signature,
+        input_example=X_train[:5]
+        )
+    
+    model_uri = f"runs:/{run.info.run_id}/model"
+    try:
+        registered_model = mlflow.register_model(model_uri, MODEL_NAME)
+        print(f"Modelo registrado: {registered_model.name} (versão {registered_model.version})")
+
+        client = MlflowClient()
+        # promote model to 'staging' and commit sha aliases
+        client.set_registered_model_alias(
+            name=MODEL_NAME,
+            alias="production",
+            version=registered_model.version
+        )
+        client.set_registered_model_alias(
+            name=MODEL_NAME,
+            alias=COMMIT_SHA,
+            version=registered_model.version,
+        )
+
+        print(f"Model version {registered_model.version} promoted to Production")
+
+    except Exception as e:
+        print(f"ERROR: Failed to register/promote model: {e}")
+        print(f"Model URI: {model_uri}")
+        print(f"MLflow tracking URI: {os.getenv('MLFLOW_TRACKING_URI')}")
+        raise
 
 print("\nExperimento finalizado com sucesso!")
