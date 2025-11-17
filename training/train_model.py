@@ -11,7 +11,6 @@ import numpy as np
 import os
 import glob
 import pyarrow.parquet as pq
-from dotenv import load_dotenv
 import os
 
 # ============================================================
