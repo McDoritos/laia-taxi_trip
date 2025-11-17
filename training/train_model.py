@@ -34,11 +34,8 @@ TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI")
 if not TRACKING_URI:
     raise EnvironmentError("Missing required env var: MLFLOW_TRACKING_URI")
 
-PATH_DATASET = r"F:\Universidade\LAIA\laia-taxi_trip\Dataset"
-
 # Read the variables
 PATH_DATASET = os.getenv('PATH_DATASET')
-MY_IP = os.getenv('MY_IP')
 
 # MLflow remoto (alterar IP conforme o servidor)
 mlflow.set_tracking_uri(TRACKING_URI)
