@@ -11,6 +11,8 @@ import numpy as np
 import os
 import glob
 import pyarrow.parquet as pq
+from dotenv import load_dotenv
+import os
 
 # ============================================================
 # CONFIGURAÇÕES INICIAIS
@@ -34,7 +36,9 @@ if not TRACKING_URI:
 
 PATH_DATASET = r"F:\Universidade\LAIA\laia-taxi_trip\Dataset"
 
-MY_IP = "10.17.0.207"
+# Read the variables
+PATH_DATASET = os.getenv('PATH_DATASET')
+MY_IP = os.getenv('MY_IP')
 
 # MLflow remoto (alterar IP conforme o servidor)
 mlflow.set_tracking_uri(TRACKING_URI)
@@ -191,7 +195,7 @@ with mlflow.start_run(run_name="RandomForestRegressor_Training") as run:
 
     print(f"Metrics:\n MAE={mae:.3f}, MSE={mse:.3f}, R2={r2:.3f}")
 
-    # Salvar tabela de predições
+    # Guardar a tabela de predições
     pred_path = "predictions_sample.csv"
     prediction_table(model, X_test, y_test, n=50, sort_by_error=True, save_csv=pred_path)
 

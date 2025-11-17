@@ -3,3 +3,6 @@ scikit-learn>=1.5.0
 matplotlib>=3.8.0
 pandas
 pyarrow
+scikit-learn
+matplotlib
+python-dotenv
