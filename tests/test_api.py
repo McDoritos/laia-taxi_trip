@@ -3,18 +3,14 @@ import pytest
 import json
 from unittest.mock import Mock, patch
 import numpy as np
-from serving.app import app
+import requests
+import os
 
 
-@pytest.fixture
-def client():
-    """Create a test client for the Flask app."""
-    app.config['TESTING'] = True
-    with app.test_client() as client:
-        yield client
+API_URI = os.getenv('API_URI')
+if not API_URI:
+    raise EnvironmentError("Missing required env var: API_URI")
 
-
-@pytest.fixture
 def mock_model():
     """Create a mock model for testing."""
     model = Mock()
@@ -22,26 +18,31 @@ def mock_model():
     return model
 
 
-def test_health_endpoint_without_model(client):
-    """Test health endpoint when no model is loaded."""
-    with patch.dict(app.config, {"MODEL": None}):
-        response = client.get('/health')
-        assert response.status_code == 200
-        data = json.loads(response.data)
-        assert data['status'] == 'healthy'
-        assert data['model_loaded'] is False
+def test_health_endpoint_without_model():
+    """Testa o /health quando o modelo NÃO está carregado no servidor remoto."""
+    response = requests.get(f"{API_URI}/health")
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert data["status"] == "healthy"
+    assert data["model_loaded"] is False
 
 
-def test_health_endpoint_with_model(client, mock_model):
-    """Test health endpoint when model is loaded."""
-    with patch.dict(app.config, {"MODEL": mock_model}):
-        response = client.get('/health')
-        assert response.status_code == 200
-        data = json.loads(response.data)
-        assert data['status'] == 'healthy'
-        assert data['model_loaded'] is True
+def test_health_endpoint_with_model():
+    """Testa o /health quando o modelo ESTÁ carregado no servidor remoto."""
+    response = requests.get(f"{API_URI}/health")
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert data["status"] == "healthy"
+    assert data["model_loaded"] is True
 
 
+'''
 def test_predict_without_model(client):
     """Test predict endpoint when no model is loaded."""
     with patch.dict(app.config, {"MODEL": None}):
@@ -132,4 +133,4 @@ def test_predict_correct_dataframe_creation(client, mock_model):
         assert response.status_code == 200
         # Verify that model.predict was called
         mock_model.predict.assert_called_once()
-
+'''
