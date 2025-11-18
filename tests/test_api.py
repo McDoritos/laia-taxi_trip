@@ -1,5 +1,4 @@
 """Unit tests for Flask API."""
-import pytest
 import json
 from unittest.mock import Mock, patch
 import numpy as np
