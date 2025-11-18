@@ -30,22 +30,28 @@ jobs:
         run: |
           sudo apt update
           sudo apt install -y openvpn openvpn-systemd-resolved
+
+      - name: Create VPN CA Certificate
+        run: echo "${{ secrets.VPN_CA_CERT }}" > ca.crt
+
       - name: Connect to DEI VPN
         uses: kota65535/github-openvpn-connect-action@v2
         with:
           config_file: .github/workflows/client.ovpn
           username: ${{ secrets.VPN_USERNAME }}
           password: ${{ secrets.VPN_PASSWORD }}
-          # The action creates a temp file from this secret and tells OpenVPN to use it
-          ca_crt: ${{ secrets.VPN_CA_CERT }}
+          # We removed 'ca_crt' here because the Action doesn't support it.
+          # The .ovpn file now points to the 'ca.crt' file created in the previous step.
+
+      # DEI uses TAP (Layer 2), so we might need to ask for an IP address manually
+      - name: Request IP (DHCP)
+        run: sudo dhclient tap0
+        continue-on-error: true
 
       - name: Verify Connection
         run: |
-          echo "VPN Status:"
-          ifconfig tap0 || echo "tap0 interface not found"
-          
-          echo "Testing connectivity:"
-          ping -c 2 10.17.0.207 || echo "Ping failed (Note: ICMP might be blocked)"
+          ifconfig tap0
+          ping -c 2 10.17.0.207 || echo "Ping blocked, but interface is up"
 
 
   test-unit:
