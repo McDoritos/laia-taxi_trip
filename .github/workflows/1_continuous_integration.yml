@@ -34,24 +34,12 @@ jobs:
       - name: Create VPN CA Certificate
         run: echo "${{ secrets.VPN_CA_CERT }}" > ca.crt
 
-      - name: Connect to DEI VPN
-        uses: kota65535/github-openvpn-connect-action@v2
+      - name: Connect to VPN
+        uses: "kota65535/github-openvpn-connect-action@v2"
         with:
           config_file: .github/workflows/client.ovpn
-          username: ${{ secrets.VPN_USERNAME }}
-          password: ${{ secrets.VPN_PASSWORD }}
-          # We removed 'ca_crt' here because the Action doesn't support it.
-          # The .ovpn file now points to the 'ca.crt' file created in the previous step.
-
-      # DEI uses TAP (Layer 2), so we might need to ask for an IP address manually
-      - name: Request IP (DHCP)
-        run: sudo dhclient tap0
-        continue-on-error: true
-
-      - name: Verify Connection
-        run: |
-          ifconfig tap0
-          ping -c 2 10.17.0.207 || echo "Ping blocked, but interface is up"
+          username: ${{ secrets.OVPN_USERNAME }}
+          password: ${{ secrets.OVPN_PASSWORD }}
 
 
   test-unit:
