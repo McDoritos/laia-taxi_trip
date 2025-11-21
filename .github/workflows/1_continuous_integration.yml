@@ -22,6 +22,7 @@ jobs:
 
   test-unit:
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -76,12 +77,12 @@ jobs:
       # Push training image to repository
       - name: Push training image
         run: |
-          docker tag training:${{ github.sha }} ${{ env.REGISTRY }}/mcdoritos/aail-practical_8/training:${{ github.sha }}
-          docker push ${{ env.REGISTRY }}/mcdoritos/aail-practical_8/training:${{ github.sha }}
+          docker tag training:${{ github.sha }} ${{ env.REGISTRY }}/mcdoritos/laia-taxi_trip/training:${{ github.sha }}
+          docker push ${{ env.REGISTRY }}/mcdoritos/laia-taxi_trip/training:${{ github.sha }}
 
       # Tag serving image with commit sha; this image will be used for further testing in the following workflows
       # Push serving image to repository
       - name: Push serving staging image
         run: |
-          docker tag serving:${{ github.sha }} ${{ env.REGISTRY }}/mcdoritos/aail-practical_8/serving:${{ github.sha }}
-          docker push ${{ env.REGISTRY }}/mcdoritos/aail-practical_8/serving:${{ github.sha }}
+          docker tag serving:${{ github.sha }} ${{ env.REGISTRY }}/mcdoritos/laia-taxi_trip/serving:${{ github.sha }}
+          docker push ${{ env.REGISTRY }}/mcdoritos/laia-taxi_trip/serving:${{ github.sha }}
