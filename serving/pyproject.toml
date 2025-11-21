@@ -1,0 +1,15 @@
+[project]
+name = "repo"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "matplotlib>=3.9.4",
+    "mlflow>=3.1.4",
+    "pandas>=2.3.3",
+    "pyarrow>=20.0.0",
+    "pytest>=8.4.2",
+    "python-dotenv>=1.2.1",
+    "scikit-learn>=1.6.1",
+]

@@ -1,17 +1,32 @@
 from flask import Flask, request, jsonify
 import mlflow.pyfunc
 import pandas as pd
+import numpy as np
 import os
 
-# MOCKING FILE OF THE FLASK APP RUNNING ON THE REMOTE SERVER
+# Allow all hosts to connect to Mlflow
+os.environ["MLFLOW_ALLOWED_HOSTS"] = "*"
 
+# Configure MLflow tracking URI and authentication
+mlflow.set_tracking_uri(os.getenv("MLFLOW_TRACKING_URI", "http://localhost:5050"))
 app = Flask(__name__)
 
-# For mock testing, start with MODEL as None
-app.config["MODEL"] = None
+MODEL_NAME = os.getenv('MLFLOW_MODEL_NAME')
+if not MODEL_NAME:
+    raise EnvironmentError("Missing required env var: MLFLOW_MODEL_NAME")
 
-MODEL_NAME = "dummy_model"
-MODEL_ALIAS = "latest"
+MODEL_ALIAS = os.getenv("MODEL_ALIAS")
+
+# Try to load model once on startup
+try:
+    app.config["MODEL"] = mlflow.pyfunc.load_model(
+        model_uri=f"models:/{MODEL_NAME}@{MODEL_ALIAS}"
+    )
+    print("Model loaded successfully at startup.")
+except Exception as e:
+    app.config["MODEL"] = None
+    print(f"Could not load model at startup: {e}")
+    print("App will start without a model. You can load it later using /reload.")
 
 
 @app.route("/model-info", methods=["GET"])
@@ -37,30 +52,47 @@ def health():
     return jsonify(status="healthy", model_loaded=app.config["MODEL"] is not None)
 
 
-@app.route("/predict", methods=["POST"])
+@app.route('/predict', methods=['POST'])
 def predict():
-    """Make predictions using the model stored in app config."""
-    model = app.config["MODEL"]
+    # 1. Retrieve the model from the app config
+    model = app.config.get("MODEL")
+    
+    # Safety check: ensure model exists
     if model is None:
-        return jsonify(error="Model not loaded. Please call /reload first."), 503
+        return jsonify({"error": "Model is not loaded. Check /health or logs."}), 503
 
+    json_input = request.get_json()
+    
+    # 2. Create DataFrame from JSON
+    df = pd.DataFrame(json_input['data'], columns=json_input['columns'])
+
+    # 3. Explicitly cast columns to int32
+    int32_cols = [
+        'pickup_hour', 
+        'pickup_dayofweek', 
+        'pickup_month', 
+        'pu_zone_code', 
+        'do_zone_code'
+    ]
+    
+    for col in int32_cols:
+        if col in df.columns:
+            # You have imported numpy as np at the top, so this is now correct:
+            df[col] = df[col].astype(np.int32)
+
+    # 4. Make Prediction
+    predictions = model.predict(df)
+    return jsonify(predictions.tolist())
+
+@app.route("/reload", methods=["GET"])
+def reload_model():
+    """Reload model from MLflow and store in Flask app config."""
     try:
-        data = request.get_json()
-        if not data:
-            return jsonify(error="No JSON data provided"), 400
-        
-        if "data" not in data or "columns" not in data:
-            return jsonify(error="Missing required fields: 'data' and 'columns'"), 400
-        
-        df = pd.DataFrame(data["data"], columns=data["columns"])
-        preds = model.predict(df)
-        return jsonify(predictions=preds.tolist())
-    except KeyError as e:
-        return jsonify(error=f"Missing required field: {str(e)}"), 400
-    except ValueError as e:
-        return jsonify(error=f"Invalid data format: {str(e)}"), 400
+        model = mlflow.pyfunc.load_model(model_uri=f"models:/{MODEL_NAME}@{MODEL_ALIAS}")
+        app.config["MODEL"] = model
+        return jsonify(message="Model reloaded successfully.")
     except Exception as e:
-        return jsonify(error=f"Prediction failed: {str(e)}"), 500
+        return jsonify(error=f"Failed to load model: {e}"), 500
 
 
 if __name__ == "__main__":
