@@ -17,30 +17,8 @@ env:
   MLFLOW_EXPERIMENT_NAME: ${{ vars.MLFLOW_EXPERIMENT_NAME }}
   MLFLOW_MODEL_NAME: ${{ vars.MLFLOW_MODEL_NAME }}
   API_URI: ${{ vars.API_URI }}
-  CA_CERT: ${{ secrets.CA_CERT }}
 
 jobs:
-  VPN-connection:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3
-      - name: Install OpenVPN
-        run: |
-          sudo apt update
-          sudo apt install -y openvpn openvpn-systemd-resolved
-
-      - name: Create VPN CA Certificate
-        run: echo "${{ secrets.VPN_CA_CERT }}" > ca.crt
-
-      - name: Connect to VPN
-        uses: "kota65535/github-openvpn-connect-action@v2"
-        with:
-          config_file: .github/workflows/client.ovpn
-          username: ${{ secrets.OVPN_USERNAME }}
-          password: ${{ secrets.OVPN_PASSWORD }}
-
 
   test-unit:
     runs-on: ubuntu-latest
