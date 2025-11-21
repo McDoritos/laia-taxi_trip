@@ -97,7 +97,7 @@ def readDataset(root=None, sample_frac_per_file=0.05):
     df = pd.read_parquet(
         file_path,
         engine="pyarrow",
-        columns=[c for c in use_cols if c in pd.read_parquet(file_path, engine="pyarrow", nrows=0).columns]
+        columns=[c for c in use_cols if c in pq.ParquetFile(file_path).schema.names]
     )
 
     pickup_col = "tpep_pickup_datetime" if "tpep_pickup_datetime" in df.columns else "pickup_datetime"
