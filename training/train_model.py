@@ -56,7 +56,7 @@ def haversine_vectorized(lat1, lon1, lat2, lon2):
     return R * c
 
 
-def readDataset(root=PATH_DATASET, sample_frac_per_file=0.05):
+def readDataset(root=None, sample_frac_per_file=0.05):
     use_cols = [
         "tpep_pickup_datetime", "tpep_dropoff_datetime",
         "pickup_datetime", "dropoff_datetime",
@@ -67,25 +67,38 @@ def readDataset(root=PATH_DATASET, sample_frac_per_file=0.05):
         "tip_amount", "total_amount"
     ]
 
-    pattern = os.path.join(root, "**", "yellow_tripdata_*.parquet")
-    files = sorted(glob.glob(pattern, recursive=True))
-    if not files:
-        raise FileNotFoundError(f"No parquet files found under {root}")
+    #pattern = os.path.join(root, "**", "yellow_tripdata_*.parquet")
+    #files = sorted(glob.glob(pattern, recursive=True))
+    #if not files:
+    #    raise FileNotFoundError(f"No parquet files found under {root}")
+#
+    #sampled_dfs = []
+    #print("Starting to read parquet files...")
+    #for fpath in files:
+    #    print(f"Reading {fpath}...")
+    #    df = pd.read_parquet(
+    #        fpath,
+    #        engine="pyarrow",
+    #        columns=[c for c in use_cols if c in pq.ParquetFile(fpath).schema.names],
+    #    )
+    #    if sample_frac_per_file and 0 < sample_frac_per_file < 1:
+    #        df = df.sample(frac=sample_frac_per_file, random_state=123) # 42, 123
+    #    sampled_dfs.append(df)
+#
+    #df = pd.concat(sampled_dfs, ignore_index=True)
 
-    sampled_dfs = []
-    print("Starting to read parquet files...")
-    for fpath in files:
-        print(f"Reading {fpath}...")
-        df = pd.read_parquet(
-            fpath,
-            engine="pyarrow",
-            columns=[c for c in use_cols if c in pq.ParquetFile(fpath).schema.names],
-        )
-        if sample_frac_per_file and 0 < sample_frac_per_file < 1:
-            df = df.sample(frac=sample_frac_per_file, random_state=123) # 42, 123
-        sampled_dfs.append(df)
+    if root is None:
+        root = os.environ.get("PATH_DATASET", "/app/Dataset/")
 
-    df = pd.concat(sampled_dfs, ignore_index=True)
+    file_path = os.path.join(root, "data_subset.parquet")
+    if not os.path.exists(file_path):
+        raise FileNotFoundError(f"{file_path} not found!")
+
+    df = pd.read_parquet(
+        file_path,
+        engine="pyarrow",
+        columns=[c for c in use_cols if c in pd.read_parquet(file_path, engine="pyarrow", nrows=0).columns]
+    )
 
     pickup_col = "tpep_pickup_datetime" if "tpep_pickup_datetime" in df.columns else "pickup_datetime"
     dropoff_col = "tpep_dropoff_datetime" if "tpep_dropoff_datetime" in df.columns else "dropoff_datetime"

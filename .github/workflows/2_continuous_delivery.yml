@@ -56,14 +56,15 @@ jobs:
         run: |
           docker run --rm \
             -v ${{ github.workspace }}/Dataset:/app/Dataset \
+            -e PATH_DATASET=/app/Dataset \
             -e MLFLOW_TRACKING_URI \
             -e MLFLOW_TRACKING_USERNAME \
             -e MLFLOW_TRACKING_PASSWORD \
             -e MLFLOW_MODEL_NAME \
             -e MLFLOW_EXPERIMENT_NAME \
             -e COMMIT_SHA \
-            -e PATH_DATASET \
-            ${{ env.REGISTRY }}/mcdoritos/laia-taxi_trip/training:${{ github.sha }}
+            ${{ env.REGISTRY }}/mcdoritos/laia-taxi_trip/training:${{ github.sha }} \
+            python /app/train_model.py
 
       # Download serving image built in the previous stage
       - run: docker pull ${{ env.REGISTRY }}/mcdoritos/laia-taxi_trip/serving:${{ github.sha }}
