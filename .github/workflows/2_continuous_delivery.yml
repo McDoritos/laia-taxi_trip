@@ -40,7 +40,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       # Download training image built in the previous stage
-      - run: docker pull ${{ env.REGISTRY }}/mcdoritos/aail-practical_8/training:${{ github.sha }}
+      - run: docker pull ${{ env.REGISTRY }}/mcdoritos/laia-taxi_trip/training:${{ github.sha }}
 
       # Run training container which runs the training script within
       # The training script will select the "best" model and tag it with the sha of the commit in mlflow
@@ -60,10 +60,10 @@ jobs:
             -e MLFLOW_MODEL_NAME \
             -e MLFLOW_EXPERIMENT_NAME \
             -e COMMIT_SHA \
-            ${{ env.REGISTRY }}/mcdoritos/aail-practical_8/training:${{ github.sha }}
+            ${{ env.REGISTRY }}/mcdoritos/laia-taxi_trip/training:${{ github.sha }}
 
       # Download serving image built in the previous stage
-      - run: docker pull ${{ env.REGISTRY }}/mcdoritos/aail-practical_8/serving:${{ github.sha }}
+      - run: docker pull ${{ env.REGISTRY }}/mcdoritos/laia-taxi_trip/serving:${{ github.sha }}
 
       # Start serving image
       # It is configured to load the model passed in env variable MLFLOW_MODEL_NAME and alias MODEL_ALIAS
@@ -83,7 +83,7 @@ jobs:
             -e MLFLOW_TRACKING_PASSWORD \
             -e MODEL_ALIAS \
             -e MLFLOW_MODEL_NAME \
-            ${{ env.REGISTRY }}/mcdoritos/aail-practical_8/serving:${{ github.sha }}
+            ${{ env.REGISTRY }}/mcdoritos/laia-taxi_trip/serving:${{ github.sha }}
           
           # Wait for Flask to be ready
           sleep 10
@@ -111,9 +111,9 @@ jobs:
       # Push serving image to repository
       - name: Push serving staging image
         run: |
-          docker tag ${{ env.REGISTRY }}/mcdoritos/aail-practical_8/serving:${{ github.sha }} \
-                     ${{ env.REGISTRY }}/mcdoritos/aail-practical_8/serving:staging
-          docker push ${{ env.REGISTRY }}/mcdoritos/aail-practical_8/serving:staging
+          docker tag ${{ env.REGISTRY }}/mcdoritos/laia-taxi_trip/serving:${{ github.sha }} \
+                     ${{ env.REGISTRY }}/mcdoritos/laia-taxi_trip/serving:staging
+          docker push ${{ env.REGISTRY }}/mcdoritos/laia-taxi_trip/serving:staging
 
       # Promote selected model to staging to be further validated
       # The script will look for the MLFLOW_MODEL_NAME and promote it from FROM_ALIAS to TO_ALIAS
