@@ -1,0 +1,4 @@
+[core]
+    remote = remote_dataset
+['remote "remote_dataset"']
+    url = ssh://admin@the-traffickers-internal.dei.uc.pt:/home/admin/dvc-storage
