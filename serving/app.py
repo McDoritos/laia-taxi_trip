@@ -3,29 +3,15 @@ import mlflow.pyfunc
 import pandas as pd
 import os
 
-# Allow all hosts to connect to Mlflow
-os.environ["MLFLOW_ALLOWED_HOSTS"] = "*"
+# MOCKING FILE OF THE FLASK APP RUNNING ON THE REMOTE SERVER
 
-# Configure MLflow tracking URI and authentication
-mlflow.set_tracking_uri(os.getenv("MLFLOW_TRACKING_URI", "http://localhost:5050"))
 app = Flask(__name__)
 
-MODEL_NAME = os.getenv('MLFLOW_MODEL_NAME')
-if not MODEL_NAME:
-    raise EnvironmentError("Missing required env var: MLFLOW_MODEL_NAME")
+# For mock testing, start with MODEL as None
+app.config["MODEL"] = None
 
-MODEL_ALIAS = os.getenv("MODEL_ALIAS")
-
-# Try to load model once on startup
-try:
-    app.config["MODEL"] = mlflow.pyfunc.load_model(
-        model_uri=f"models:/{MODEL_NAME}@{MODEL_ALIAS}"
-    )
-    print("Model loaded successfully at startup.")
-except Exception as e:
-    app.config["MODEL"] = None
-    print(f"Could not load model at startup: {e}")
-    print("App will start without a model. You can load it later using /reload.")
+MODEL_NAME = "dummy_model"
+MODEL_ALIAS = "latest"
 
 
 @app.route("/model-info", methods=["GET"])
@@ -75,17 +61,6 @@ def predict():
         return jsonify(error=f"Invalid data format: {str(e)}"), 400
     except Exception as e:
         return jsonify(error=f"Prediction failed: {str(e)}"), 500
-
-
-@app.route("/reload", methods=["GET"])
-def reload_model():
-    """Reload model from MLflow and store in Flask app config."""
-    try:
-        model = mlflow.pyfunc.load_model(model_uri=f"models:/{MODEL_NAME}@{MODEL_ALIAS}")
-        app.config["MODEL"] = model
-        return jsonify(message="Model reloaded successfully.")
-    except Exception as e:
-        return jsonify(error=f"Failed to load model: {e}"), 500
 
 
 if __name__ == "__main__":
