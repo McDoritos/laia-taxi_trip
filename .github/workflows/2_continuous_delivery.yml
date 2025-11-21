@@ -42,6 +42,11 @@ jobs:
       # Download training image built in the previous stage
       - run: docker pull ${{ env.REGISTRY }}/mcdoritos/laia-taxi_trip/training:${{ github.sha }}
 
+      - name: Pull dataset from DVC remote
+        run: |
+          pip install "dvc[ssh]"
+          dvc pull
+          dvc checkout
 
       # Run training container which runs the training script within
       # The training script will select the "best" model and tag it with the sha of the commit in mlflow
@@ -63,12 +68,7 @@ jobs:
             -e MLFLOW_EXPERIMENT_NAME \
             -e COMMIT_SHA \
             -e PATH_DATASET \
-            ${{ env.REGISTRY }}/mcdoritos/laia-taxi_trip/training:${{ github.sha }} \
-            /bin/bash -c "
-              dvc pull && \
-              dvc checkout && \
-              python /app/train_model.py
-            "
+            ${{ env.REGISTRY }}/mcdoritos/laia-taxi_trip/training:${{ github.sha }}
 
       # Download serving image built in the previous stage
       - run: docker pull ${{ env.REGISTRY }}/mcdoritos/laia-taxi_trip/serving:${{ github.sha }}
