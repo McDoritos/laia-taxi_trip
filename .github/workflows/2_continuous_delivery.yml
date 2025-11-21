@@ -65,7 +65,6 @@ jobs:
             -e PATH_DATASET \
             ${{ env.REGISTRY }}/mcdoritos/laia-taxi_trip/training:${{ github.sha }} \
             /bin/bash -c "
-              pip install dvc[ssh] && \
               dvc pull && \
               dvc checkout && \
               python /app/train_model.py

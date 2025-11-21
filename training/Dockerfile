@@ -12,6 +12,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         curl \
     && rm -rf /var/lib/apt/lists/*
 
+# ---- Install DVC with SSH support ----
+RUN pip install uv "dvc[ssh]"
+
 # ---- Install uv ----
 RUN pip install uv
 
