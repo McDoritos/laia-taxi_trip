@@ -39,7 +39,7 @@ def promote_model():
         name=model_name, alias=to_alias, version=version
     )
 
-    print(f"✅ Promoted {model_name} version {version} to '{to_alias}'")
+    print(f"Promoted {model_name} version {version} to '{to_alias}'")
 
 
 if __name__ == "__main__":
