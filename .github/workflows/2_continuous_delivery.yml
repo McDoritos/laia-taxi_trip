@@ -52,6 +52,7 @@ jobs:
           MLFLOW_EXPERIMENT_NAME: ${{ env.MLFLOW_EXPERIMENT_NAME }}
           MLFLOW_MODEL_NAME: ${{ env.MLFLOW_MODEL_NAME }}
           COMMIT_SHA: ${{ github.sha }}
+          PATH_DATASET: ${{ env.PATH_DATASET}}
         run: |
           docker run --rm \
             -e MLFLOW_TRACKING_URI \
