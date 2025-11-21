@@ -17,24 +17,24 @@ import os
 # CONFIGURAÇÕES INICIAIS
 # ============================================================
 
-COMMIT_SHA = os.getenv('COMMIT_SHA')
+COMMIT_SHA = os.getenv('COMMIT_SHA', 'local-dev')
 if not COMMIT_SHA:
     raise EnvironmentError("Missing required env var: COMMIT_SHA")
 
-MODEL_NAME = os.getenv('MLFLOW_MODEL_NAME')
+MODEL_NAME = os.getenv('MLFLOW_MODEL_NAME', 'laia-taxi-model')
 if not MODEL_NAME:
     raise EnvironmentError("Missing required env var: MLFLOW_MODEL_NAME")
 
-EXP_NAME = os.getenv('MLFLOW_EXPERIMENT_NAME')
+EXP_NAME = os.getenv('MLFLOW_EXPERIMENT_NAME', 'laia-taxi-exp')
 if not EXP_NAME:
     raise EnvironmentError("Missing required env var: MLFLOW_EXPERIMENT_NAME")
 
-TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI")
+TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI", "https://the-traffickers.dei.uc.pt:9002")
 if not TRACKING_URI:
     raise EnvironmentError("Missing required env var: MLFLOW_TRACKING_URI")
 
 # Read the variables
-PATH_DATASET = os.getenv('PATH_DATASET')
+PATH_DATASET = os.getenv('PATH_DATASET',"../Dataset/")
 
 # MLflow remoto (alterar IP conforme o servidor)
 mlflow.set_tracking_uri(TRACKING_URI)
