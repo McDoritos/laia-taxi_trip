@@ -100,7 +100,7 @@ dmypy.json
 # pytype static type analyzer
 .pytype/
 
-Dataset/
+Dataset/2011/
 2.14.0
 .env
 predictions_sample.csv
