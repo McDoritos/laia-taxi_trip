@@ -4,11 +4,9 @@ run-name: "${{ github.workflow }}"
 permissions: write-all
 
 on:
-  # Runs when the previous stage finished
   workflow_run:
     workflows: ["1 - Continuous Integration"]
     types: [completed]
-
   workflow_dispatch:
 
 env:
@@ -18,32 +16,50 @@ env:
   MLFLOW_MODEL_NAME: ${{ vars.MLFLOW_MODEL_NAME }}
 
 jobs:
-
   train-model:
-    # Run only if previous stage finished successfully
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
-    runs-on: ubuntu-latest
-
+    runs-on: self-hosted # Running on your internal infrastructure
     steps:
       - uses: actions/checkout@v4
+
+      # 1. Install DVC and SSH support
       - uses: actions/setup-python@v5
-        with: { python-version: '3.13' }
-      - run: pip install uv
+        with: { python-version: "3.13" }
+      - run: pip install uv "dvc[ssh]"
 
+      # 2. Setup SSH for DVC (Connects to internal server)
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DVC_SSH_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H the-traffickers-internal.dei.uc.pt >> ~/.ssh/known_hosts
 
-      # Log in to GitHub Container Registry (GHCR)
-      # We will get the serving image with tag staging from here to validate
+      # 3. Pull Data from Remote Storage
+      - name: DVC Pull
+        run: dvc pull
+
+      # 4. DEBUG: Verify Data Existence
+      # This step checks if 'Dataset' folder exists and has the parquet file.
+      # If this fails, it means your DVC tracked folder is named something else!
+      - name: Check Data Path
+        run: |
+          echo "Checking contents of workspace..."
+          ls -F
+          echo "Checking contents of Dataset folder..."
+          ls -F Dataset/ || echo "WARNING: Dataset folder not found in root!"
+
+      # 5. Docker Login
       - uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Download training image built in the previous stage
+      # 6. Pull the Docker Image
       - run: docker pull ${{ env.REGISTRY }}/mcdoritos/laia-taxi_trip/training:${{ github.sha }}
 
-      # Run training container which runs the training script within
-      # The training script will select the "best" model and tag it with the sha of the commit in mlflow
+      # 7. Run Training with Volume Mount
       - name: Run training
         env:
           MLFLOW_TRACKING_URI: ${{ env.MLFLOW_TRACKING_URI }}
@@ -52,7 +68,8 @@ jobs:
           MLFLOW_EXPERIMENT_NAME: ${{ env.MLFLOW_EXPERIMENT_NAME }}
           MLFLOW_MODEL_NAME: ${{ env.MLFLOW_MODEL_NAME }}
           COMMIT_SHA: ${{ github.sha }}
-          PATH_DATASET: ${{ env.PATH_DATASET}}
+          # This tells your python script to look in the mount point
+          PATH_DATASET: /app/Dataset
         run: |
           docker run --rm \
             -v ${{ github.workspace }}/Dataset:/app/Dataset \
@@ -64,10 +81,9 @@ jobs:
             -e MLFLOW_EXPERIMENT_NAME \
             -e COMMIT_SHA \
             ${{ env.REGISTRY }}/mcdoritos/laia-taxi_trip/training:${{ github.sha }} \
-            python /app/train_model.py
+            python train_model.py
 
-      # Promote selected model to staging to be further validated
-      # The script will look for the MLFLOW_MODEL_NAME and promote it from FROM_ALIAS to TO_ALIAS
+      # 8. Promote Model
       - name: Promote model to staging
         env:
           MLFLOW_TRACKING_URI: ${{ env.MLFLOW_TRACKING_URI }}
@@ -78,4 +94,3 @@ jobs:
           FROM_ALIAS: ${{ github.sha }}
           TO_ALIAS: staging
         run: uv run python model-promotion/promote_model.py
-

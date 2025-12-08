@@ -5,9 +5,9 @@ permissions: write-all
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
   workflow_dispatch:
 
@@ -19,14 +19,13 @@ env:
   API_URI: ${{ vars.API_URI }}
 
 jobs:
-
   test-unit:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
 
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
-        with: { python-version: '3.13' }
+        with: { python-version: "3.13" }
       - run: pip install uv
       - run: uv sync
       - run: uv run pytest tests/test_api.py -v
@@ -34,7 +33,7 @@ jobs:
 
   build-images:
     # Passed tests, now build docker images for training and serving
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: test-unit
     steps:
       - uses: actions/checkout@v4
