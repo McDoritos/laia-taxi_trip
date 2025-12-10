@@ -37,7 +37,7 @@ jobs:
 
       # 3. Pull Data from Remote Storage
       - name: DVC Pull
-        run: dvc pull 2011.dvc 2012.dvc
+        run: dvc pull Dataset/2011.dvc Dataset/2012.dvc
 
       # 4. DEBUG: Verify Data Existence
       # This step checks if 'Dataset' folder exists and has the parquet file.
