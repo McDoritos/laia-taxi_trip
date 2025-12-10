@@ -67,6 +67,9 @@ def readDataset(root=None, sample_frac_per_file=0.05):
         "tip_amount", "total_amount"
     ]
 
+    if root is None:
+        root = os.environ.get("PATH_DATASET", "/app/Dataset/")
+
     pattern = os.path.join(root, "**", "yellow_tripdata_*.parquet")
     files = sorted(glob.glob(pattern, recursive=True))
     if not files:
