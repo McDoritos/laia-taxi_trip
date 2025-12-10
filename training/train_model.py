@@ -67,38 +67,29 @@ def readDataset(root=None, sample_frac_per_file=0.05):
         "tip_amount", "total_amount"
     ]
 
-    #pattern = os.path.join(root, "**", "yellow_tripdata_*.parquet")
-    #files = sorted(glob.glob(pattern, recursive=True))
-    #if not files:
-    #    raise FileNotFoundError(f"No parquet files found under {root}")
-#
-    #sampled_dfs = []
-    #print("Starting to read parquet files...")
-    #for fpath in files:
-    #    print(f"Reading {fpath}...")
-    #    df = pd.read_parquet(
-    #        fpath,
-    #        engine="pyarrow",
-    #        columns=[c for c in use_cols if c in pq.ParquetFile(fpath).schema.names],
-    #    )
-    #    if sample_frac_per_file and 0 < sample_frac_per_file < 1:
-    #        df = df.sample(frac=sample_frac_per_file, random_state=123) # 42, 123
-    #    sampled_dfs.append(df)
-#
-    #df = pd.concat(sampled_dfs, ignore_index=True)
+    pattern = os.path.join(root, "**", "yellow_tripdata_*.parquet")
+    files = sorted(glob.glob(pattern, recursive=True))
+    if not files:
+        raise FileNotFoundError(f"No parquet files found under {root}")
 
-    if root is None:
-        root = os.environ.get("PATH_DATASET", "/app/Dataset/")
+    sampled_dfs = []
+    
+    print(f"Found {len(files)} parquet files, starting to read...")
 
-    file_path = os.path.join(root, "data_subset.parquet")
-    if not os.path.exists(file_path):
-        raise FileNotFoundError(f"{file_path} not found!")
+    for fpath in files:
+        print(f"Reading {fpath}...")
+        df = pd.read_parquet(
+            fpath,
+            engine="pyarrow",
+            columns=[c for c in use_cols if c in pq.ParquetFile(fpath).schema.names],
+        )
+        if sample_frac_per_file and 0 < sample_frac_per_file < 1:
+            df = df.sample(frac=sample_frac_per_file, random_state=123) # 42, 123
+        sampled_dfs.append(df)
 
-    df = pd.read_parquet(
-        file_path,
-        engine="pyarrow",
-        columns=[c for c in use_cols if c in pq.ParquetFile(file_path).schema.names]
-    )
+    df = pd.concat(sampled_dfs, ignore_index=True)
+
+    print(f"Loaded dataframe with {len(df)} rows and {len(df.columns)} columns")
 
     pickup_col = "tpep_pickup_datetime" if "tpep_pickup_datetime" in df.columns else "pickup_datetime"
     dropoff_col = "tpep_dropoff_datetime" if "tpep_dropoff_datetime" in df.columns else "dropoff_datetime"
