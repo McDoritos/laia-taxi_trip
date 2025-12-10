@@ -31,13 +31,17 @@ jobs:
       - name: Setup SSH
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.DVC_SSH_KEY }}" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H the-traffickers-internal.dei.uc.pt >> ~/.ssh/known_hosts
+          echo "${{ secrets.DVC_SSH_KEY }}" > ~/.ssh/dvc_runner_key
+          chmod 600 ~/.ssh/dvc_runner_key
+
+          # SSH precisa saber qual chave usar:
+          echo "Host the-traffickers-internal.dei.uc.pt
+              IdentityFile ~/.ssh/dvc_runner_key
+              StrictHostKeyChecking no" >> ~/.ssh/config
 
       # 3. Pull Data from Remote Storage
       - name: DVC Pull
-        run: dvc pull Dataset/2011.dvc Dataset/2012.dvc
+        run: dvc pull -v --jobs 1 Dataset/2011.dvc Dataset/2012.dvc
 
       # 4. DEBUG: Verify Data Existence
       # This step checks if 'Dataset' folder exists and has the parquet file.
