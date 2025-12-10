@@ -41,8 +41,7 @@ jobs:
 
       # 3. Pull Data from Remote Storage
       - name: DVC Pull
-        run: dvc pull -v --jobs 1 Dataset/2011 Dataset/2012
-
+        run: dvc pull -v --jobs 1 Dataset/2011.dvc Dataset/2012.dvc
       # 4. DEBUG: Verify Data Existence
       # This step checks if 'Dataset' folder exists and has the parquet file.
       # If this fails, it means your DVC tracked folder is named something else!
