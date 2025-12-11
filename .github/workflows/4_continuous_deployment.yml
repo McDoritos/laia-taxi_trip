@@ -41,14 +41,12 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Deploy to Production Server
+      - name: Deploy to Production
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
           script: |
-            export GITHUB_USERNAME=${{ github.actor }}
-            export GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}
-            cd deploy
+            cd /home/admin/Desktop/Flask/serving
             bash deploy.sh
