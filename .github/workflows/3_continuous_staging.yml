@@ -39,6 +39,11 @@ jobs:
 
       - run: docker pull ${{ env.REGISTRY }}/mcdoritos/laia-taxi_trip/serving:staging
 
+      # Since it is running on a self-hosted the serving image started on the previous stage is still active so it must be removed
+      - name: Cleanup old serving container
+        run: |
+          docker rm -f serving-app 2>/dev/null || true
+
       - name: Start serving container
         env:
           MLFLOW_TRACKING_URI: ${{ env.MLFLOW_TRACKING_URI }}
