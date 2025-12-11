@@ -50,5 +50,5 @@ jobs:
           script: |
             export GITHUB_USERNAME=${{ github.actor }}
             export GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}
-            cd /deploy   
+            cd deploy
             bash deploy.sh
