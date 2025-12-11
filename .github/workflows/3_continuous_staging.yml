@@ -21,7 +21,7 @@ jobs:
   stage-tests:
     # Run only if previous stage finished successfully
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
 
     steps:
       - uses: actions/checkout@v4
