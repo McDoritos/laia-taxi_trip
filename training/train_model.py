@@ -228,7 +228,7 @@ with mlflow.start_run(run_name="RandomForestRegressor_Training") as run:
         # promote model to 'staging' and commit sha aliases
         client.set_registered_model_alias(
             name=MODEL_NAME,
-            alias="production",
+            alias="staging",
             version=registered_model.version
         )
         client.set_registered_model_alias(
@@ -237,7 +237,7 @@ with mlflow.start_run(run_name="RandomForestRegressor_Training") as run:
             version=registered_model.version,
         )
 
-        print(f"Model version {registered_model.version} promoted to Production")
+        print(f"Model version {registered_model.version} promoted to staging")
 
     except Exception as e:
         print(f"ERROR: Failed to register/promote model: {e}")

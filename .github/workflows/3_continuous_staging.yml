@@ -37,7 +37,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - run: docker pull ${{ env.REGISTRY }}/${{ github.repository }}/serving:staging
+      - run: docker pull ${{ env.REGISTRY }}/mcdoritos/laia-taxi_trip/serving:staging
 
       - name: Start serving container
         env:
@@ -55,7 +55,7 @@ jobs:
             -e MLFLOW_TRACKING_PASSWORD \
             -e MODEL_ALIAS \
             -e MLFLOW_MODEL_NAME \
-            ${{ env.REGISTRY }}/${{ github.repository }}/serving:staging
+            ${{ env.REGISTRY }}/mcdoritos/laia-taxi_trip/serving:staging
           
           # Wait for Flask to be ready
           sleep 10
@@ -81,6 +81,6 @@ jobs:
       # This is the image that will be used to deploy the system
       - name: Push production container tag
         run: |
-          docker tag ${{ env.REGISTRY }}/${{ github.repository }}/serving:staging \
-                     ${{ env.REGISTRY }}/${{ github.repository }}/serving:production
-          docker push ${{ env.REGISTRY }}/${{ github.repository }}/serving:production
+          docker tag ${{ env.REGISTRY }}/mcdoritos/laia-taxi_trip/serving:staging \
+                     ${{ env.REGISTRY }}/mcdoritos/laia-taxi_trip/serving:production
+          docker push ${{ env.REGISTRY }}/mcdoritos/laia-taxi_trip/serving:production
