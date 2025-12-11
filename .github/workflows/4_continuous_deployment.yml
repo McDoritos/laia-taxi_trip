@@ -49,4 +49,4 @@ jobs:
           key: ${{ secrets.SSH_KEY }}
           script: |
             cd /home/admin/Desktop/Flask/serving
-            bash deploy.sh
+            bash deploy.sh ${{ github.actor }} ${{ secrets.GITHUB_TOKEN }}
