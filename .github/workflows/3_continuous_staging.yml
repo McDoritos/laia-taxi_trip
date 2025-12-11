@@ -1,0 +1,86 @@
+name: 3 - Continuous Staging
+run-name: "${{ github.workflow }}"
+
+permissions: write-all
+
+on:
+  # Runs when the previous stage finished
+  workflow_run:
+    workflows: ["2 - Continuous Delivery"]
+    types: [completed]
+
+  workflow_dispatch:
+
+env:
+  REGISTRY: ${{ vars.REGISTRY }}
+  MLFLOW_TRACKING_URI: ${{ vars.MLFLOW_TRACKING_URI }}
+  MLFLOW_EXPERIMENT_NAME: ${{ vars.MLFLOW_EXPERIMENT_NAME }}
+  MLFLOW_MODEL_NAME: ${{ vars.MLFLOW_MODEL_NAME }}
+
+jobs:
+  stage-tests:
+    # Run only if previous stage finished successfully
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.13' }
+      - run: pip install uv
+
+      # Log in to GitHub Container Registry (GHCR)
+      # We will get the serving image with tag staging from here to validate
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - run: docker pull ${{ env.REGISTRY }}/${{ github.repository }}/serving:staging
+
+      - name: Start serving container
+        env:
+          MLFLOW_TRACKING_URI: ${{ env.MLFLOW_TRACKING_URI }}
+          MLFLOW_TRACKING_USERNAME: ${{ secrets.MLFLOW_USERNAME }}
+          MLFLOW_TRACKING_PASSWORD: ${{ secrets.MLFLOW_PASSWORD }}
+          MODEL_ALIAS: ${{ github.sha }}
+          MLFLOW_MODEL_NAME: ${{ env.MLFLOW_MODEL_NAME }}
+        run: |
+          docker run -d \
+            --name serving-app \
+            -p 8080:8080 \
+            -e MLFLOW_TRACKING_URI \
+            -e MLFLOW_TRACKING_USERNAME \
+            -e MLFLOW_TRACKING_PASSWORD \
+            -e MODEL_ALIAS \
+            -e MLFLOW_MODEL_NAME \
+            ${{ env.REGISTRY }}/${{ github.repository }}/serving:staging
+          
+          # Wait for Flask to be ready
+          sleep 10
+
+      # Here we are just running the same E2E tests, but in real systems we would run
+      # the system in a preproduction environment, that would manually or automatically
+      # apply  A/B testing, shadow testing and other approaches to measure
+      # and validate the performance of the model before moving to production
+      - run: uv run pytest tests/test_e2e.py -v
+
+      # When reaching the stage both the serving and the model will have passed
+      # the necessary tests and we promote to production
+      - name: Promote model to production
+        env:
+          MLFLOW_TRACKING_URI: ${{ env.MLFLOW_TRACKING_URI }}
+          MLFLOW_TRACKING_USERNAME: ${{ secrets.MLFLOW_USERNAME }}
+          MLFLOW_TRACKING_PASSWORD: ${{ secrets.MLFLOW_PASSWORD }}
+          FROM_ALIAS: staging
+          TO_ALIAS: production
+        run: uv run python model-promotion/promote_model.py
+
+      # Tag the serving image with production tag
+      # This is the image that will be used to deploy the system
+      - name: Push production container tag
+        run: |
+          docker tag ${{ env.REGISTRY }}/${{ github.repository }}/serving:staging \
+                     ${{ env.REGISTRY }}/${{ github.repository }}/serving:production
+          docker push ${{ env.REGISTRY }}/${{ github.repository }}/serving:production
