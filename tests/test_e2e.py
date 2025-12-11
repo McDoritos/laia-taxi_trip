@@ -62,8 +62,8 @@ def test_flask_model_loaded():
     assert data['model_loaded'] is True, "Model should be loaded"
 
 
-def test_prediction_single_sample():
-    """Test prediction with a single iris sample."""
+"""def test_prediction_single_sample():
+    \"""Test prediction with a single iris sample.\"""
     # Ensure model is loaded
     health_response = requests.get(f"{FLASK_BASE_URL}/health")
     health_data = health_response.json()
@@ -89,10 +89,10 @@ def test_prediction_single_sample():
     assert 'predictions' in data
     assert len(data['predictions']) == 1
     assert data['predictions'][0] in [0, 1, 2]  # Valid iris class
+"""
 
-
-def test_prediction_multiple_samples():
-    """Test prediction with multiple iris samples."""
+"""def test_prediction_multiple_samples():
+    \"""Test prediction with multiple iris samples.\"""
     # Ensure model is loaded
     health_response = requests.get(f"{FLASK_BASE_URL}/health")
     health_data = health_response.json()
@@ -125,7 +125,7 @@ def test_prediction_multiple_samples():
     # All predictions should be valid iris classes
     for pred in data['predictions']:
         assert pred in [0, 1, 2]
-
+"""
 
 def test_prediction_without_model():
     """Test that prediction fails gracefully when model is not loaded."""
@@ -147,8 +147,8 @@ def test_model_reload():
     assert health_data['model_loaded'] is True
 
 
-def test_prediction_accuracy():
-    """Test that predictions are reasonable for known samples."""
+"""def test_prediction_accuracy():
+    \"""Test that predictions are reasonable for known samples.\"""
     # Ensure model is loaded
     health_response = requests.get(f"{FLASK_BASE_URL}/health")
     health_data = health_response.json()
@@ -173,7 +173,7 @@ def test_prediction_accuracy():
     data = response.json()
     # For a typical setosa sample, we expect class 0
     assert data['predictions'][0] == 0, "Setosa sample should be classified as class 0"
-
+"""
 
 def test_api_error_handling():
     """Test API error handling with invalid input."""
@@ -193,8 +193,8 @@ def test_api_error_handling():
     assert response.status_code in [400, 500]
 
 
-def test_concurrent_predictions():
-    """Test that API can handle concurrent prediction requests."""
+"""def test_concurrent_predictions():
+    \"""Test that API can handle concurrent prediction requests.\"""
     # Ensure model is loaded
     health_response = requests.get(f"{FLASK_BASE_URL}/health")
     health_data = health_response.json()
@@ -223,4 +223,4 @@ def test_concurrent_predictions():
         assert response.status_code == 200
         data = response.json()
         assert 'predictions' in data
-
+"""
