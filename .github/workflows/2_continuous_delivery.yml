@@ -90,6 +90,10 @@ jobs:
         # Download serving image built in the previous stage
       - run: docker pull ${{ env.REGISTRY }}/mcdoritos/laia-taxi_trip/serving:${{ github.sha }}
 
+      - name: Cleanup old serving container
+        run: |
+          docker rm -f serving-app 2>/dev/null || true
+
       # Start serving image
       # It is configured to load the model passed in env variable MLFLOW_MODEL_NAME and alias MODEL_ALIAS
       - name: Start serving container
