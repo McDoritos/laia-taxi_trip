@@ -90,6 +90,7 @@ jobs:
         # Download serving image built in the previous stage
       - run: docker pull ${{ env.REGISTRY }}/mcdoritos/laia-taxi_trip/serving:${{ github.sha }}
 
+      #In case of failure of the workflow the old serving container is removed
       - name: Cleanup old serving container
         run: |
           docker rm -f serving-app 2>/dev/null || true
