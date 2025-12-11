@@ -8,10 +8,12 @@ source .env
 # Config (normally passed by CI)
 # -------------------------------
 REGISTRY="ghcr.io"
-IMAGE_NAME="jrcampos/laia-tutorial/serving"
-MLFLOW_TRACKING_URI="http://dsn2026hotcrp.dei.uc.pt:8080"
-MLFLOW_MODEL_NAME="iris_cicd_model_joao_r_campos"
+IMAGE_NAME="mcdoritos/laia-taxi_trip/serving"
 ALIAS="production"
+
+# MLflow tracking
+MLFLOW_TRACKING_URI="http://the-traffickers-internal.dei.uc.pt:5050"
+MLFLOW_MODEL_NAME="laia-taxi-model"
 
 # These two must be passed in environment before running script
 : "${GITHUB_USERNAME:?Need GITHUB_USERNAME env var}"
@@ -45,14 +47,12 @@ fi
 # -------------------------------
 echo "Starting new serving-app container..."
 
-docker run \
+docker run -d \
   --name serving-app \
-  -p 9000:8080 \
+  -p 8080:8080 \
   -e MLFLOW_TRACKING_URI="$MLFLOW_TRACKING_URI" \
   -e MLFLOW_MODEL_NAME="$MLFLOW_MODEL_NAME" \
-  -e MLFLOW_TRACKING_USERNAME="$MLFLOW_TRACKING_USERNAME" \
-  -e MLFLOW_TRACKING_PASSWORD="$MLFLOW_TRACKING_PASSWORD" \
   -e MODEL_ALIAS="$ALIAS" \
-  "$REGISTRY/$IMAGE_NAME:production"
+  "$REGISTRY/$IMAGE_NAME:$ALIAS"
 
 echo "✅ Deployment done successfully."
