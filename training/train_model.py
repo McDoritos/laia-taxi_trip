@@ -224,7 +224,7 @@ with mlflow.start_run(run_name="RandomForestRegressor_Training") as run:
     
     # Run the report on the Dataset object
     # For a single dataset (quality check), pass it as 'current_data'
-    report.run(reference_data=None, current_data=train_dataset)
+    report.run(reference_data=train_dataset, current_data=train_dataset)
     
     # Save the report to a JSON file
     drift_report_path = "drift_baseline.json"
