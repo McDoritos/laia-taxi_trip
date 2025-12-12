@@ -39,7 +39,7 @@ jobs:
           MLFLOW_TRACKING_PASSWORD: ${{ secrets.MLFLOW_PASSWORD }}
         run: |
           # Build the image using your Dockerfile.monitoring
-          docker build -t drift-checker -f Dockerfile.monitoring .
+          docker build -t drift-checker -f monitoring/Dockerfile.monitoring .
 
           # Run the container
           # -v $(pwd)/logs:/app/logs: Maps the logs we just downloaded into the container
