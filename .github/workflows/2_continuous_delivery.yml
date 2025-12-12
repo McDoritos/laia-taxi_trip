@@ -117,8 +117,7 @@ jobs:
             -e MODEL_ALIAS \
             -e MLFLOW_MODEL_NAME \
             ${{ env.REGISTRY }}/mcdoritos/laia-taxi_trip/serving:${{ github.sha }}
-          docker run -d \
-          
+
           sleep 10
 
       # Run end to end tests, this will test the serving app to see if it is working ok
