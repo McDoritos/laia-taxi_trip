@@ -12,7 +12,7 @@ import os
 import glob
 import pyarrow.parquet as pq
 import os
-
+import json
 from evidently import Dataset
 from evidently import DataDefinition
 from evidently import Report
@@ -203,48 +203,37 @@ with mlflow.start_run(run_name="RandomForestRegressor_Training") as run:
     print("Training RandomForest...")
     model.fit(X_train, y_train)
 
-    # -------------------------------------------------------------
+   # -------------------------------------------------------------
     # ### Capture Baseline for Drift Detection (Evidently 0.7+)
     # -------------------------------------------------------------
     print("Generating training data baseline report...")
-    
-    # Define the data structure (replaces the old ColumnMapping)
-    # Evidently 0.7+ infers types automatically if not specified, but explicit is better
-    data_def = DataDefinition() 
-    
-    # Create the Dataset object (Required in 0.7+)
-    # We treat X_train as both current and reference for the baseline Quality report
-    train_dataset = Dataset.from_pandas(
-        X_train, 
-        data_definition=data_def
-    )
 
-    # Initialize the report with the new preset import
-    report = Report(metrics=[DataDriftPreset()])
-    
-    # Run the report on the Dataset object
-    # For a single dataset (quality check), pass it as 'current_data'
-    report.run(reference_data=train_dataset, current_data=train_dataset)
-    
-    # Save the report to a JSON file
-    drift_report_path = "drift_baseline.json"
-    # Explicit data definition (optional but recommended)
+    # Explicit data definition (recommended)
     data_def = DataDefinition(
         numerical_columns=X_train.select_dtypes(include="number").columns.tolist(),
         categorical_columns=X_train.select_dtypes(exclude="number").columns.tolist()
     )
 
+    # Build Evidently dataset
     train_dataset = Dataset.from_pandas(X_train, data_definition=data_def)
 
+    # Create report
     report = Report(metrics=[DataDriftPreset()])
-    # Use the same dataset as both reference and current for baseline
-    report.run(current_data=train_dataset, reference_data=train_dataset)
-    
-    # save_json is removed in newer versions, use this instead:
+
+    # Run report (returns a Snapshot object)
+    snapshot = report.run(
+        reference_data=train_dataset,
+        current_data=train_dataset
+    )
+
+    # Save JSON
+    drift_report_path = "drift_baseline.json"
     with open(drift_report_path, "w") as f:
-        f.write(report.json())
-        
+        json.dump(snapshot.dict(), f, indent=2)
+
+    # Log to MLflow
     mlflow.log_artifact(drift_report_path, artifact_path="drift_info")
+
     # -------------------------------------------------------------
 
     preds = model.predict(X_test)
