@@ -111,6 +111,7 @@ jobs:
           MLFLOW_MODEL_NAME: ${{ env.MLFLOW_MODEL_NAME }}
         run: |
           docker run -d \
+            --user $(id -u):$(id -g) \
             --name serving-app \
             -p 9001:8080 \
             -v $(pwd)/logs:/app/logs \
@@ -122,7 +123,6 @@ jobs:
             -e MLFLOW_MODEL_NAME \
             ${{ env.REGISTRY }}/mcdoritos/laia-taxi_trip/serving:${{ github.sha }}
 
-          # Wait for Flask to be ready
           sleep 10
 
       # Run end to end tests, this will test the serving app to see if it is working ok
