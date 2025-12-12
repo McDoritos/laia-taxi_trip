@@ -179,6 +179,19 @@ with mlflow.start_run(run_name="RandomForestRegressor_Training") as run:
     mlflow.log_param("max_depth", max_depth)
     mlflow.log_param("min_samples_split", min_samples_split)
 
+    # -------------------------------------------------------------
+    # ### ADDED: Save Reference Data for Drift Detection
+    # -------------------------------------------------------------
+    # We save the training features to a parquet file. 
+    # This file will be downloaded by the monitoring system to compare against live traffic.
+    ref_path = "reference.parquet"
+    X_train.to_parquet(ref_path)
+    
+    print(f"Logging reference data to MLflow: {ref_path}")
+    # We store it in a 'drift_info' folder inside the artifacts
+    mlflow.log_artifact(ref_path, artifact_path="drift_info")
+    # -------------------------------------------------------------
+    
     model = RandomForestRegressor(
         n_estimators=n_estimators,
         max_depth=max_depth,
