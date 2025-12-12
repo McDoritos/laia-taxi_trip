@@ -105,8 +105,6 @@ jobs:
       - name: Start serving container
         env:
           MLFLOW_TRACKING_URI: ${{ env.MLFLOW_TRACKING_URI }}
-          MLFLOW_TRACKING_USERNAME: ${{ secrets.MLFLOW_USERNAME }}
-          MLFLOW_TRACKING_PASSWORD: ${{ secrets.MLFLOW_PASSWORD }}
           MODEL_ALIAS: ${{ github.sha }}
           MLFLOW_MODEL_NAME: ${{ env.MLFLOW_MODEL_NAME }}
         run: |
@@ -117,14 +115,17 @@ jobs:
             -v $(pwd)/logs:/app/logs \
             -e LOG_DIR=/app/logs \
             -e MLFLOW_TRACKING_URI \
-            -e MLFLOW_TRACKING_USERNAME \
-            -e MLFLOW_TRACKING_PASSWORD \
             -e MODEL_ALIAS \
             -e MLFLOW_MODEL_NAME \
             ${{ env.REGISTRY }}/mcdoritos/laia-taxi_trip/serving:${{ github.sha }}
 
+          sleep 10
+
       # Run end to end tests, this will test the serving app to see if it is working ok
       # Additional metrics and verification can assess performance metrics as well
+      - name: Flask verification
+        run:
+          curl http://localhost:8080/health
       - name: Run Staging tests
         env:
           FLASK_BASE_URL: http://localhost:8080

@@ -8,6 +8,29 @@ import os
 FLASK_BASE_URL = os.getenv("FLASK_BASE_URL", "http://localhost:8080")
 # MLflow is remote, not tested directly in E2E
 
+def wait_for_service(url, timeout=30, interval=2):
+    """Wait for a service to be available."""
+    start_time = time.time()
+    while time.time() - start_time < timeout:
+        try:
+            response = requests.get(url, timeout=5)
+            if response.status_code == 200:
+                return True
+        except requests.exceptions.RequestException:
+            pass
+        time.sleep(interval)
+    return False
+
+
+@pytest.fixture(scope="module", autouse=True)
+def wait_for_services():
+    print("\nWaiting for Flask service to be ready...")
+
+    ready = wait_for_service(f"{FLASK_BASE_URL}/health", timeout=40, interval=2)
+    assert ready, "Flask service not available after waiting"
+
+    print("Flask service ready!")
+
 TAXI_FEATURE_COLUMNS = [
     "haversine_km", "trip_distance", "passenger_count", "fare_amount",
     "pickup_hour", "pickup_dayofweek", "pickup_month", "is_weekend",
@@ -33,31 +56,6 @@ SAMPLE_FEATURES = [
         87    # do_zone_code
     ]
 ]
-
-
-
-def wait_for_service(url, timeout=30, interval=2):
-    """Wait for a service to be available."""
-    start_time = time.time()
-    while time.time() - start_time < timeout:
-        try:
-            response = requests.get(url, timeout=5)
-            if response.status_code == 200:
-                return True
-        except requests.exceptions.RequestException:
-            pass
-        time.sleep(interval)
-    return False
-
-
-@pytest.fixture(scope="module", autouse=True)
-def wait_for_services():
-    print("\nWaiting for Flask service to be ready...")
-
-    ready = wait_for_service(f"{FLASK_BASE_URL}/health", timeout=40, interval=2)
-    assert ready, "Flask service not available after waiting"
-
-    print("Flask service ready!")
 
 
 def test_flask_health():
