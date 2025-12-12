@@ -63,11 +63,11 @@ jobs:
             -e MLFLOW_MODEL_NAME \
             ${{ env.REGISTRY }}/mcdoritos/laia-taxi_trip/serving:staging
 
-          # Wait for Flask to be ready
-          sleep 10
-
       # Run E2E tests
-      - run: uv run pytest tests/test_e2e.py -v
+      - name: Run Staging tests
+        env:
+          FLASK_BASE_URL: http://localhost:8080
+        run: uv run pytest tests/test_e2e.py -v
 
       # --- NEW STEP TO FIX PERMISSIONS ---
       # This runs even if tests fail (if: always)

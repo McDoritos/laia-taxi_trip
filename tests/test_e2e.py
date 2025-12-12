@@ -3,10 +3,9 @@ import pytest
 import requests
 import json
 import time
+import os
 
-
-# Base URLs for services
-FLASK_BASE_URL = "http://localhost:8080"
+FLASK_BASE_URL = os.getenv("FLASK_BASE_URL", "http://localhost:8080")
 # MLflow is remote, not tested directly in E2E
 
 TAXI_FEATURE_COLUMNS = [
@@ -53,15 +52,12 @@ def wait_for_service(url, timeout=30, interval=2):
 
 @pytest.fixture(scope="module", autouse=True)
 def wait_for_services():
-    """Wait for Flask service to be ready before running tests."""
     print("\nWaiting for Flask service to be ready...")
-    
-    # Wait for Flask app
-    flask_ready = wait_for_service(f"{FLASK_BASE_URL}/health")
-    if not flask_ready:
-        pytest.skip("Flask service not available")
-    
-    print("Flask service ready! (Using remote MLflow)")
+
+    ready = wait_for_service(f"{FLASK_BASE_URL}/health", timeout=40, interval=2)
+    assert ready, "Flask service not available after waiting"
+
+    print("Flask service ready!")
 
 
 def test_flask_health():

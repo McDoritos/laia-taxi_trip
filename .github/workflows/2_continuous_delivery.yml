@@ -123,11 +123,11 @@ jobs:
             -e MLFLOW_MODEL_NAME \
             ${{ env.REGISTRY }}/mcdoritos/laia-taxi_trip/serving:${{ github.sha }}
 
-          sleep 10
-
       # Run end to end tests, this will test the serving app to see if it is working ok
       # Additional metrics and verification can assess performance metrics as well
       - name: Run Staging tests
+        env:
+          FLASK_BASE_URL: http://localhost:8080
         run: uv run pytest tests/test_e2e.py -v
 
       - name: Show container logs on failure
