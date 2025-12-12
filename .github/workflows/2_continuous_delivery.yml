@@ -27,24 +27,33 @@ jobs:
         with: { python-version: "3.13" }
       - run: pip install uv "dvc[ssh]"
 
-      # 2. Setup SSH for DVC (Connects to internal server)
+      # 2. Setup SSH for DVC (Robust for Self-Hosted Runners)
       - name: Setup SSH
         run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.DVC_SSH_KEY }}" > ~/.ssh/dvc_runner_key
           chmod 600 ~/.ssh/dvc_runner_key
 
-          # SSH precisa saber qual chave usar:
+          # WIPE specific host config if it exists to prevent duplicates (using sed)
+          # This deletes lines containing the hostname from the config file
+          touch ~/.ssh/config
+          sed -i '/the-traffickers-internal.dei.uc.pt/d' ~/.ssh/config || true
+          sed -i '/IdentityFile ~\/.ssh\/dvc_runner_key/d' ~/.ssh/config || true
+          sed -i '/StrictHostKeyChecking no/d' ~/.ssh/config || true
+
+          # Re-add the clean configuration
           echo "Host the-traffickers-internal.dei.uc.pt
+              User admin
               IdentityFile ~/.ssh/dvc_runner_key
               StrictHostKeyChecking no" >> ~/.ssh/config
 
-      # --- ADD THIS STEP HERE ---
-      - name: Clean DVC Cache
+      # 2.1 DEBUG: Verify SSH Connection
+      # This will tell us immediately if the runner can talk to the server
+      - name: Test SSH Connection
         run: |
-          echo "Cleaning .dvc/cache to prevent corruption on self-hosted runner..."
-          rm -rf .dvc/cache
-      # --------------------------
+          echo "Testing SSH connection..."
+          ssh -vT -o ConnectTimeout=5 admin@the-traffickers-internal.dei.uc.pt || echo "WARNING: SSH Connection failed, DVC will likely fail."
+
       # 3. Pull Data from Remote Storage
       - name: DVC Pull
         run: dvc pull -v --jobs 1 Dataset/2011.dvc Dataset/2012.dvc
