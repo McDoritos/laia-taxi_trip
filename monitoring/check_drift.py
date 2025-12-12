@@ -4,8 +4,10 @@ import json
 import sys
 import os
 import requests
-from evidently.report import Report
-from evidently.metric_preset import DataDriftPreset
+from evidently import Dataset
+from evidently import DataDefinition
+from evidently import Report
+from evidently.presets import DataDriftPreset, DataSummaryPreset 
 
 # Configuration
 MLFLOW_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI")
