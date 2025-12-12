@@ -9,6 +9,33 @@ import time
 FLASK_BASE_URL = "http://localhost:8080"
 # MLflow is remote, not tested directly in E2E
 
+TAXI_FEATURE_COLUMNS = [
+    "haversine_km", "trip_distance", "passenger_count", "fare_amount",
+    "pickup_hour", "pickup_dayofweek", "pickup_month", "is_weekend",
+    "season", "is_rush_hour", "has_congestion_fee", "total_amount",
+    "pu_zone_code", "do_zone_code"
+]
+
+SAMPLE_FEATURES = [
+    [
+        2.8,  # haversine_km
+        3.1,  # trip_distance
+        1,    # passenger_count
+        12.5, # fare_amount
+        14,   # pickup_hour
+        3,    # pickup_dayofweek
+        6,    # pickup_month
+        0,    # is_weekend
+        2,    # season
+        1,    # is_rush_hour
+        1,    # has_congestion_fee
+        14.8, # total_amount
+        125,  # pu_zone_code
+        87    # do_zone_code
+    ]
+]
+
+
 
 def wait_for_service(url, timeout=30, interval=2):
     """Wait for a service to be available."""
@@ -62,70 +89,46 @@ def test_flask_model_loaded():
     assert data['model_loaded'] is True, "Model should be loaded"
 
 
-"""def test_prediction_single_sample():
-    \"""Test prediction with a single iris sample.\"""
-    # Ensure model is loaded
-    health_response = requests.get(f"{FLASK_BASE_URL}/health")
-    health_data = health_response.json()
-    
-    if not health_data.get('model_loaded', False):
-        requests.get(f"{FLASK_BASE_URL}/reload")
-        time.sleep(2)
-    
-    # Make prediction
+def test_prediction_single_sample():
     payload = {
-        "data": [[5.1, 3.5, 1.4, 0.2]],
-        "columns": ["sepal_length", "sepal_width", "petal_length", "petal_width"]
+        "data": SAMPLE_FEATURES,
+        "columns": TAXI_FEATURE_COLUMNS
     }
-    
-    response = requests.post(
-        f"{FLASK_BASE_URL}/predict",
-        json=payload,
-        headers={"Content-Type": "application/json"}
-    )
-    
-    assert response.status_code == 200
-    data = response.json()
-    assert 'predictions' in data
-    assert len(data['predictions']) == 1
-    assert data['predictions'][0] in [0, 1, 2]  # Valid iris class
-"""
 
-"""def test_prediction_multiple_samples():
-    \"""Test prediction with multiple iris samples.\"""
-    # Ensure model is loaded
-    health_response = requests.get(f"{FLASK_BASE_URL}/health")
-    health_data = health_response.json()
-    
-    if not health_data.get('model_loaded', False):
-        requests.get(f"{FLASK_BASE_URL}/reload")
-        time.sleep(2)
-    
-    # Make prediction with 3 samples (one from each iris class typically)
-    payload = {
-        "data": [
-            [5.1, 3.5, 1.4, 0.2],  # Likely setosa (class 0)
-            [6.2, 2.9, 4.3, 1.3],  # Likely versicolor (class 1)
-            [7.3, 3.0, 6.3, 1.8]   # Likely virginica (class 2)
-        ],
-        "columns": ["sepal_length", "sepal_width", "petal_length", "petal_width"]
-    }
-    
     response = requests.post(
         f"{FLASK_BASE_URL}/predict",
         json=payload,
-        headers={"Content-Type": "application/json"}
+        headers={"Content-Type": "application/json"},
     )
-    
+
     assert response.status_code == 200
     data = response.json()
-    assert 'predictions' in data
-    assert len(data['predictions']) == 3
-    
-    # All predictions should be valid iris classes
-    for pred in data['predictions']:
-        assert pred in [0, 1, 2]
-"""
+
+    assert "predictions" in data
+    assert len(data["predictions"]) == 1
+    assert isinstance(data["predictions"][0], (float, int))
+    assert data["predictions"][0] > 0
+
+
+def test_prediction_multiple_samples():
+    payload = {
+        "data": SAMPLE_FEATURES * 3,
+        "columns": TAXI_FEATURE_COLUMNS
+    }
+
+    response = requests.post(
+        f"{FLASK_BASE_URL}/predict",
+        json=payload,
+        headers={"Content-Type": "application/json"},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+
+    assert "predictions" in data
+    assert len(data["predictions"]) == 3
+    for p in data["predictions"]:
+        assert isinstance(p, (float, int))
 
 def test_prediction_without_model():
     """Test that prediction fails gracefully when model is not loaded."""
@@ -146,35 +149,6 @@ def test_model_reload():
     health_data = health_response.json()
     assert health_data['model_loaded'] is True
 
-
-"""def test_prediction_accuracy():
-    \"""Test that predictions are reasonable for known samples.\"""
-    # Ensure model is loaded
-    health_response = requests.get(f"{FLASK_BASE_URL}/health")
-    health_data = health_response.json()
-    
-    if not health_data.get('model_loaded', False):
-        requests.get(f"{FLASK_BASE_URL}/reload")
-        time.sleep(2)
-    
-    # Test with a typical setosa sample (should predict class 0)
-    setosa_payload = {
-        "data": [[5.0, 3.4, 1.5, 0.2]],
-        "columns": ["sepal_length", "sepal_width", "petal_length", "petal_width"]
-    }
-    
-    response = requests.post(
-        f"{FLASK_BASE_URL}/predict",
-        json=setosa_payload,
-        headers={"Content-Type": "application/json"}
-    )
-    
-    assert response.status_code == 200
-    data = response.json()
-    # For a typical setosa sample, we expect class 0
-    assert data['predictions'][0] == 0, "Setosa sample should be classified as class 0"
-"""
-
 def test_api_error_handling():
     """Test API error handling with invalid input."""
     # Test with missing columns
@@ -193,21 +167,22 @@ def test_api_error_handling():
     assert response.status_code in [400, 500]
 
 
-"""def test_concurrent_predictions():
-    \"""Test that API can handle concurrent prediction requests.\"""
+def test_concurrent_predictions():
+    """Test that API can handle concurrent taxi prediction requests."""
     # Ensure model is loaded
     health_response = requests.get(f"{FLASK_BASE_URL}/health")
     health_data = health_response.json()
-    
+
     if not health_data.get('model_loaded', False):
         requests.get(f"{FLASK_BASE_URL}/reload")
         time.sleep(2)
-    
+
+    # Payload de acordo com as features usadas no treino do modelo
     payload = {
-        "data": [[5.1, 3.5, 1.4, 0.2]],
-        "columns": ["sepal_length", "sepal_width", "petal_length", "petal_width"]
+        "data": SAMPLE_FEATURES,
+        "columns": TAXI_FEATURE_COLUMNS
     }
-    
+
     # Make multiple requests quickly
     responses = []
     for _ in range(5):
@@ -217,10 +192,9 @@ def test_api_error_handling():
             headers={"Content-Type": "application/json"}
         )
         responses.append(response)
-    
+
     # All should succeed
     for response in responses:
         assert response.status_code == 200
         data = response.json()
         assert 'predictions' in data
-"""
