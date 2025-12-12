@@ -14,25 +14,29 @@ env:
 jobs:
   check-drift:
     runs-on: self-hosted
-    # We do NOT use 'container:' here because we want to run SCP on the host
-    # and then manually run our custom docker container.
-
     steps:
       - uses: actions/checkout@v4
 
-      # 1. SETUP SSH & DOWNLOAD LOGS (Run this on the Host Machine)
-      - name: Setup SSH & Download Logs
+      # 1. SETUP SSH (Copied from 2_continuous_delivery.yml)
+      - name: Setup SSH
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.SSH_KEY }}" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
+          echo "${{ secrets.DVC_SSH_KEY }}" > ~/.ssh/dvc_runner_key
+          chmod 600 ~/.ssh/dvc_runner_key
 
+          # Configure SSH to use this key for your internal host
+          echo "Host the-traffickers-internal.dei.uc.pt
+              IdentityFile ~/.ssh/dvc_runner_key
+              StrictHostKeyChecking no" >> ~/.ssh/config
+
+      # 2. DOWNLOAD LOGS
+      - name: Download Logs
+        run: |
           mkdir -p logs
-          # Copy logs from server to local runner
-          scp -r ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/home/admin/Desktop/Flask/serving/logs/* ./logs/ || echo "No logs found, creating empty directory"
+          # We use the explicit hostname so it matches the ~/.ssh/config entry above
+          scp -r ${{ secrets.SSH_USER }}@the-traffickers-internal.dei.uc.pt:/home/admin/Desktop/Flask/serving/logs/* ./logs/ || echo "No logs found, creating empty directory"
 
-      # 2. BUILD & RUN DOCKER CONTAINER
+      # 3. BUILD & RUN DOCKER CONTAINER
       - name: Run Drift Check in Docker
         env:
           MLFLOW_TRACKING_USERNAME: ${{ secrets.MLFLOW_USERNAME }}

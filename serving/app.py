@@ -2,16 +2,35 @@ from flask import Flask, request, jsonify
 import mlflow.pyfunc
 import pandas as pd
 import numpy as np
-import logging
-import json
 import os
-from datetime import datetime
+import json
+
+LOG_FILE = "logs/inference_logs.jsonl"
+
+def log_inference(df: pd.DataFrame, predictions):
+    """
+    Log each inference request and prediction to a JSONL file
+    for later data drift detection.
+    
+    Args:
+        df: DataFrame containing input features for prediction.
+        predictions: List or array of predictions.
+    """
+    os.makedirs(os.path.dirname(LOG_FILE), exist_ok=True)
+    
+    records = df.to_dict(orient="records")
+    
+    # Combine input features with predictions
+    for row, pred in zip(records, predictions.tolist()):
+        row['_prediction'] = pred  # store prediction alongside input
+        with open(LOG_FILE, "a") as f:
+            f.write(json.dumps(row) + "\n")
 
 # Allow all hosts to connect to Mlflow
 os.environ["MLFLOW_ALLOWED_HOSTS"] = "*"
 
 # Configure MLflow tracking URI and authentication
-mlflow.set_tracking_uri(os.getenv("MLFLOW_TRACKING_URI", "http://the-traffickers-internal.dei.uc.pt:5050"))
+mlflow.set_tracking_uri("http://the-traffickers-internal.dei.uc.pt:5050")
 app = Flask(__name__)
 
 MODEL_NAME = os.getenv('MLFLOW_MODEL_NAME')
@@ -31,16 +50,6 @@ except Exception as e:
     print(f"Could not load model at startup: {e}")
     print("App will start without a model. You can load it later using /reload.")
 
-# --- LOGGER SETUP  ---
-LOG_DIR = os.getenv('LOG_DIR', '/app/logs')
-os.makedirs(LOG_DIR, exist_ok=True)
-
-drift_logger = logging.getLogger("drift_monitor")
-drift_logger.setLevel(logging.INFO)
-if not drift_logger.handlers:
-    handler = logging.FileHandler(os.path.join(LOG_DIR, "inference_logs.jsonl"))
-    handler.setFormatter(logging.Formatter('%(message)s'))
-    drift_logger.addHandler(handler)
 
 @app.route("/model-info", methods=["GET"])
 def model_info():
@@ -75,41 +84,47 @@ def predict():
         return jsonify({"error": "Model is not loaded. Check /health or logs."}), 503
 
     json_input = request.get_json()
+
+     # 2. Create DataFrame with model's expected columns
+    required_columns = [
+        "haversine_km", "trip_distance", "passenger_count", "fare_amount",
+        "pickup_hour", "pickup_dayofweek", "pickup_month", "is_weekend",
+        "season", "is_rush_hour", "has_congestion_fee", "total_amount",
+        "pu_zone_code", "do_zone_code"
+    ]
+
+    # Check if all required columns are present
+    if 'columns' not in json_input or 'data' not in json_input:
+        return jsonify({"error": "Missing 'data' or 'columns' in request"}), 400
     
     # 2. Create DataFrame from JSON
     df = pd.DataFrame(json_input['data'], columns=json_input['columns'])
 
-    # 3. Explicitly cast columns to int32
-    int32_cols = [
-        'pickup_hour', 
-        'pickup_dayofweek', 
-        'pickup_month', 
-        'pu_zone_code', 
-        'do_zone_code'
-    ]
-    
-    for col in int32_cols:
+    # 3. Cast integer columns
+    int_cols = ['pickup_hour', 'pickup_dayofweek', 'pickup_month',
+                'pu_zone_code', 'do_zone_code', 'passenger_count',
+                'is_weekend', 'season', 'is_rush_hour', 'has_congestion_fee']
+
+    for col in int_cols:
         if col in df.columns:
-            # You have imported numpy as np at the top, so this is now correct:
             df[col] = df[col].astype(np.int32)
 
-    # 4. Make Prediction
-    predictions = model.predict(df)
-    
-    # 5. Log Prediction
-    try:
-        # Create a copy for logging
-        log_payload = df.copy()
-        log_payload['timestamp'] = datetime.now().isoformat()
-        
-        # Log each row
-        for record in log_payload.to_dict(orient='records'):
-            drift_logger.info(json.dumps(record))
-    except Exception as e:
-        print(f"Logging failed: {e}")
+        # 4. Cast float columns
+    float_cols = ['haversine_km', 'trip_distance', 'fare_amount', 'total_amount']
+    for col in float_cols:
+        if col in df.columns:
+            df[col] = df[col].astype(np.float64)
 
-    # --- KEEP EXISTING RETURN ---
-    return jsonify(prediction.tolist())
+    # 5. Make Prediction
+    predictions = model.predict(df)
+
+    # --- NEW STEP: Log the data for monitoring ---
+    # We run this AFTER prediction so we can log the result too
+    # Log for monitoring
+    log_inference(df, predictions)
+
+    # Return predictions
+    return jsonify(predictions.tolist())
 
 @app.route("/reload", methods=["GET"])
 def reload_model():

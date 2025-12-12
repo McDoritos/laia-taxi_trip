@@ -41,8 +41,11 @@ def check_drift():
         run_id = prod_model.run_id
         print(f"Comparing against Production Model Version: {prod_model.version} (Run ID: {run_id})")
         
-        local_ref_path = client.download_artifacts(run_id, "reference.parquet", dst_path=".")
+        local_ref_path = client.download_artifacts(run_id, "drift_info/reference.parquet", dst_path=".")
+        
+        print(f"Artifact downloaded to: {local_ref_path}")
         reference_data = pd.read_parquet(local_ref_path)
+        
     except Exception as e:
         print(f"Failed to load reference data: {e}")
         return
