@@ -39,6 +39,12 @@ jobs:
               IdentityFile ~/.ssh/dvc_runner_key
               StrictHostKeyChecking no" >> ~/.ssh/config
 
+      # --- ADD THIS STEP HERE ---
+      - name: Clean DVC Cache
+        run: |
+          echo "Cleaning .dvc/cache to prevent corruption on self-hosted runner..."
+          rm -rf .dvc/cache
+      # --------------------------
       # 3. Pull Data from Remote Storage
       - name: DVC Pull
         run: dvc pull -v --jobs 1 Dataset/2011.dvc Dataset/2012.dvc
