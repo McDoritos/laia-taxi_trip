@@ -113,7 +113,7 @@ jobs:
           docker run -d \
             --user $(id -u):$(id -g) \
             --name serving-app \
-            -p 9001:8080 \
+            -p 8080:8080 \
             -v $(pwd)/logs:/app/logs \
             -e LOG_DIR=/app/logs \
             -e MLFLOW_TRACKING_URI \
