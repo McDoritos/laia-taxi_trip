@@ -9,40 +9,48 @@ env:
   MLFLOW_TRACKING_URI: ${{ vars.MLFLOW_TRACKING_URI }}
   MLFLOW_MODEL_NAME: ${{ vars.MLFLOW_MODEL_NAME }}
   GITHUB_TOKEN: ${{ secrets.PAT_TOKEN }}
-  DRY_RUN: "true" # <--- ENABLE TESTING MODE
+  DRY_RUN: "true"
 
 jobs:
   check-drift:
     runs-on: self-hosted
+    # We do NOT use 'container:' here because we want to run SCP on the host
+    # and then manually run our custom docker container.
+
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
-        with: { python-version: "3.13" }
-
-      - run: pip install uv && uv pip install mlflow pandas evidently pyarrow
-
-      # 1. Setup SSH (Copy from your deployment file)
-      - name: Setup SSH
+      # 1. SETUP SSH & DOWNLOAD LOGS (Run this on the Host Machine)
+      - name: Setup SSH & Download Logs
         run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.SSH_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
 
-      # 2. FETCH THE LOGS
-      - name: Download Production Logs
-        run: |
           mkdir -p logs
-          # Copy logs from the server to this runner
-          scp -r ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/home/admin/Desktop/Flask/serving/logs/* ./logs/ || echo "No logs found yet"
+          # Copy logs from server to local runner
+          scp -r ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/home/admin/Desktop/Flask/serving/logs/* ./logs/ || echo "No logs found, creating empty directory"
 
-          echo "Checking downloaded logs:"
-          ls -R logs/
-
-      # 3. Now run the check (It will find the files now)
-      - name: Run Drift Check
+      # 2. BUILD & RUN DOCKER CONTAINER
+      - name: Run Drift Check in Docker
         env:
           MLFLOW_TRACKING_USERNAME: ${{ secrets.MLFLOW_USERNAME }}
           MLFLOW_TRACKING_PASSWORD: ${{ secrets.MLFLOW_PASSWORD }}
-        run: python monitoring/check_drift.py
+        run: |
+          # Build the image using your Dockerfile.monitoring
+          docker build -t drift-checker -f Dockerfile.monitoring .
+
+          # Run the container
+          # -v $(pwd)/logs:/app/logs: Maps the logs we just downloaded into the container
+          # --env-file: Passes all current env vars (MLFLOW_*, GITHUB_*, etc) to container
+          docker run --rm \
+            -v $(pwd)/logs:/app/logs \
+            -e MLFLOW_TRACKING_URI \
+            -e MLFLOW_MODEL_NAME \
+            -e MLFLOW_TRACKING_USERNAME \
+            -e MLFLOW_TRACKING_PASSWORD \
+            -e GITHUB_TOKEN \
+            -e GITHUB_REPOSITORY \
+            -e DRY_RUN \
+            drift-checker

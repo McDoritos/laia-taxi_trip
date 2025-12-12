@@ -1,0 +1,14 @@
+FROM python:3.13-slim
+
+WORKDIR /app
+
+# Install dependencies
+RUN pip install uv
+# Added 'scikit-learn' as it is often required for drift detection algorithms
+RUN uv pip install --system mlflow pandas evidently pyarrow requests scikit-learn
+
+# Copy your monitoring code into the container
+COPY monitoring/ ./monitoring/
+
+# Default command
+CMD ["python", "monitoring/check_drift.py"]

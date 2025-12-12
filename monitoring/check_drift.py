@@ -10,6 +10,8 @@ from evidently.metric_preset import DataDriftPreset
 # Configuration
 MLFLOW_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI")
 MLFLOW_MODEL_NAME = os.getenv("MLFLOW_MODEL_NAME")
+GITHUB_REPO = os.getenv("GITHUB_REPOSITORY")
+GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 LOG_FILE = "logs/inference_logs.jsonl"
 
 def check_drift():
@@ -18,11 +20,11 @@ def check_drift():
         print(f"No log file found at {LOG_FILE}. Skipping drift check.")
         return
 
-    current_data = pd.read_json(LOG_FILE, lines=True)
-    
-    # Optional: Filter for recent data (e.g., last 24h)
-    # current_data['timestamp'] = pd.to_datetime(current_data['timestamp'])
-    # current_data = current_data[current_data['timestamp'] > pd.Timestamp.now() - pd.Timedelta(days=1)]
+    try:
+        current_data = pd.read_json(LOG_FILE, lines=True)
+    except ValueError:
+        print("Log file format error or empty. Skipping.")
+        return
 
     if current_data.empty:
         print("Log file is empty. Skipping.")
@@ -32,74 +34,85 @@ def check_drift():
     mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
     client = mlflow.MlflowClient()
     
-    # Get the Production model version
     try:
         prod_model = client.get_model_version_by_alias(MLFLOW_MODEL_NAME, "production")
         run_id = prod_model.run_id
         print(f"Comparing against Production Model Version: {prod_model.version} (Run ID: {run_id})")
-    except Exception:
-        print("No production model found. Skipping.")
+        
+        local_ref_path = client.download_artifacts(run_id, "reference.parquet", dst_path=".")
+        reference_data = pd.read_parquet(local_ref_path)
+    except Exception as e:
+        print(f"Failed to load reference data: {e}")
         return
 
-    # Download reference data (Ensure you saved X_train as parquet in train_model.py!)
-    # If you only saved the JSON report, Evidently requires the raw data for new comparisons.
-    # Recommended: mlflow.log_artifact("reference.parquet") in training.
-    local_ref_path = client.download_artifacts(run_id, "reference.parquet", dst_path=".")
-    reference_data = pd.read_parquet(local_ref_path)
-
-    # Align columns (Current data might have extra 'timestamp' or 'prediction' columns)
+    # Align columns
     common_cols = list(set(reference_data.columns) & set(current_data.columns))
+    if not common_cols:
+        print("Error: No common columns found.")
+        sys.exit(1)
+
     reference_data = reference_data[common_cols]
     current_data = current_data[common_cols]
 
     print(f"3. Running Drift Detection on {len(common_cols)} features...")
+    
+    # --- FIXED: Use Snapshot API ---
     report = Report(metrics=[DataDriftPreset()])
-    report.run(reference_data=reference_data, current_data=current_data)
     
-    # Save Report
-    report.save_html("drift_report.html")
-    print("Drift report saved to drift_report.html")
+    # run() returns a Snapshot object
+    snapshot = report.run(reference_data=reference_data, current_data=current_data)
+    
+    # Save reports using the snapshot object
+    snapshot.save_html("drift_report.html")
+    snapshot.save_json("drift_report.json")
+    print("Drift reports saved (html/json).")
 
-    # Parse Results
-    results = report.as_dict()
-    dataset_drift = results['metrics'][0]['result']['dataset_drift']
+    # Get the dictionary from the snapshot for logic checks
+    results = snapshot.dict() 
+
+    drift_detected = False
     
-    if dataset_drift:
+    # Parse metrics to find dataset_drift
+    # Note: 'metric_types.py' uses 'value' to store results, not 'result'
+    for metric in results.get('metrics', []):
+        # We look for the 'DatasetDriftMetric' or similar output structure
+        val = metric.get('value', {})
+        
+        # Check if 'dataset_drift' is in the value dict
+        if isinstance(val, dict) and 'dataset_drift' in val:
+            drift_detected = val['dataset_drift']
+            break
+            
+    if drift_detected:
         print("!!! DATA DRIFT DETECTED !!!")
 
-        # CHECK FOR DRY RUN MODE
         if os.environ.get("DRY_RUN") == "true":
             print(">>> DRY RUN: Retraining triggers are disabled.")
-            print(">>> SUCCESS: The system correctly identified drift and attempted to retrain.")
-            sys.exit(0) # Exit Green (Success)
+            sys.exit(0) 
         
-        # 1. Define the GitHub API endpoint to trigger Stage 2
-        # We trigger "2 - Continuous Delivery" (file: 2_continuous_delivery.yml)
-        repo = "mcdoritos/laia-taxi_trip" # REPLACE WITH YOUR REPO
-        workflow_id = "2_continuous_delivery.yml"
-        token = os.environ.get("GITHUB_TOKEN") # Ensure this env var is set in your YAML
+        print(f"Triggering retraining on {GITHUB_REPO}...")
+        workflow_filename = "2_continuous_delivery.yml"
         
-        url = f"https://api.github.com/repos/{repo}/actions/workflows/{workflow_id}/dispatches"
+        if not GITHUB_REPO or not GITHUB_TOKEN:
+            print("Error: GITHUB_REPOSITORY or GITHUB_TOKEN not set.")
+            sys.exit(1)
+
+        url = f"https://api.github.com/repos/{GITHUB_REPO}/actions/workflows/{workflow_filename}/dispatches"
         headers = {
-            "Authorization": f"Bearer {token}",
+            "Authorization": f"Bearer {GITHUB_TOKEN}",
             "Accept": "application/vnd.github.v3+json"
         }
-        data = {"ref": "main"} # The branch to run on
+        data = {"ref": "main"}
 
-        # 2. Trigger the Workflow
-        print(f"Triggering retraining workflow: {workflow_id}...")
         response = requests.post(url, headers=headers, json=data)
         
         if response.status_code == 204:
-            print("Successfully triggered retraining.")
+            print("Successfully triggered retraining workflow.")
         else:
             print(f"Failed to trigger retraining: {response.status_code} - {response.text}")
-            sys.exit(1) # Exit with error if we couldn't pull the alarm
-            
-        # We exit with 0 (Success) because the drift was handled successfully
-        sys.exit(0)
+            sys.exit(1)
     else:
-        print("No drift detected.")
+        print("No drift detected. System stable.")
 
 if __name__ == "__main__":
     check_drift()
