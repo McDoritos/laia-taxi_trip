@@ -13,11 +13,10 @@ import glob
 import pyarrow.parquet as pq
 import os
 
-# DataDriftPreset requires two datasets. For a single baseline profile, we use DataQualityPreset.
-# Defensive import so the error message is clearer if evidently is not installed or API changed.
-from evidently.report import Report
-from evidently.metric_preset import DataDriftPreset, DataQualityPreset
-
+from evidently import Dataset
+from evidently import DataDefinition
+from evidently import Report
+from evidently.presets import DataDriftPreset, DataSummaryPreset 
 # ============================================================
 # CONFIGURAÇÕES INICIAIS
 # ============================================================
@@ -205,25 +204,43 @@ with mlflow.start_run(run_name="RandomForestRegressor_Training") as run:
     model.fit(X_train, y_train)
 
     # -------------------------------------------------------------
-    # ### FIXED: Capture Baseline for Drift Detection
+    # ### Capture Baseline for Drift Detection (Evidently 0.7+)
     # -------------------------------------------------------------
     print("Generating training data baseline report...")
     
-    # We use DataQualityPreset to capture the statistics of the training set.
-    # DataDriftPreset requires TWO datasets (ref vs curr), so we cannot use it
-    # here with only training data. This Quality report acts as the baseline profile.
-    report = Report(metrics=[DataQualityPreset()])
+    # Define the data structure (replaces the old ColumnMapping)
+    # Evidently 0.7+ infers types automatically if not specified, but explicit is better
+    data_def = DataDefinition() 
     
-    # Run on X_train (single dataset mode)
-    report.run(reference_data=None, current_data=X_train)
+    # Create the Dataset object (Required in 0.7+)
+    # We treat X_train as both current and reference for the baseline Quality report
+    train_dataset = Dataset.from_pandas(
+        X_train, 
+        data_definition=data_def
+    )
+
+    # Initialize the report with the new preset import
+    report = Report(metrics=[DataDriftPreset()])
+    
+    # Run the report on the Dataset object
+    # For a single dataset (quality check), pass it as 'current_data'
+    report.run(reference_data=None, current_data=train_dataset)
     
     # Save the report to a JSON file
     drift_report_path = "drift_baseline.json"
+    # Explicit data definition (optional but recommended)
+    data_def = DataDefinition(
+        numerical_columns=X_train.select_dtypes(include="number").columns.tolist(),
+        categorical_columns=X_train.select_dtypes(exclude="number").columns.tolist()
+    )
+
+    train_dataset = Dataset.from_pandas(X_train, data_definition=data_def)
+
+    report = Report(metrics=[DataDriftPreset()])
+    # Use the same dataset as both reference and current for baseline
+    report.run(current_data=train_dataset, reference_data=train_dataset)
+
     report.save_json(drift_report_path)
-    
-    # Log the baseline report to MLflow
-    # This ensures that when this model is deployed, we can download this exact baseline
-    print(f"Logging drift baseline to MLflow: {drift_report_path}")
     mlflow.log_artifact(drift_report_path, artifact_path="drift_info")
     # -------------------------------------------------------------
 
