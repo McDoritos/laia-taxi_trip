@@ -3,6 +3,7 @@ import mlflow
 import json
 import sys
 import os
+import requests
 from evidently.report import Report
 from evidently.metric_preset import DataDriftPreset
 
