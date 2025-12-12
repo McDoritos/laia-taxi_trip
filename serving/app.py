@@ -2,7 +2,10 @@ from flask import Flask, request, jsonify
 import mlflow.pyfunc
 import pandas as pd
 import numpy as np
+import logging
+import json
 import os
+from datetime import datetime
 
 # Allow all hosts to connect to Mlflow
 os.environ["MLFLOW_ALLOWED_HOSTS"] = "*"
@@ -28,6 +31,16 @@ except Exception as e:
     print(f"Could not load model at startup: {e}")
     print("App will start without a model. You can load it later using /reload.")
 
+# --- LOGGER SETUP  ---
+LOG_DIR = os.getenv('LOG_DIR', '/app/logs')
+os.makedirs(LOG_DIR, exist_ok=True)
+
+drift_logger = logging.getLogger("drift_monitor")
+drift_logger.setLevel(logging.INFO)
+if not drift_logger.handlers:
+    handler = logging.FileHandler(os.path.join(LOG_DIR, "inference_logs.jsonl"))
+    handler.setFormatter(logging.Formatter('%(message)s'))
+    drift_logger.addHandler(handler)
 
 @app.route("/model-info", methods=["GET"])
 def model_info():
@@ -82,7 +95,21 @@ def predict():
 
     # 4. Make Prediction
     predictions = model.predict(df)
-    return jsonify(predictions.tolist())
+    
+    # 5. Log Prediction
+    try:
+        # Create a copy for logging
+        log_payload = df.copy()
+        log_payload['timestamp'] = datetime.now().isoformat()
+        
+        # Log each row
+        for record in log_payload.to_dict(orient='records'):
+            drift_logger.info(json.dumps(record))
+    except Exception as e:
+        print(f"Logging failed: {e}")
+
+    # --- KEEP EXISTING RETURN ---
+    return jsonify(prediction.tolist())
 
 @app.route("/reload", methods=["GET"])
 def reload_model():

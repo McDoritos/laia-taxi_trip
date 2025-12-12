@@ -1,0 +1,37 @@
+name: 5 - Daily Drift Check
+
+on:
+  schedule:
+    - cron: "0 8 * * *" # Run every day at 8am
+  workflow_dispatch:
+
+env:
+  MLFLOW_TRACKING_URI: ${{ vars.MLFLOW_TRACKING_URI }}
+  MLFLOW_MODEL_NAME: ${{ vars.MLFLOW_MODEL_NAME }}
+
+jobs:
+  check-drift:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.13" }
+
+      - run: pip install uv && uv pip install mlflow pandas evidently pyarrow
+
+      # Assuming the self-hosted runner has the logs in the relative folder 'logs'
+      # from the previous "docker run -v $(pwd)/logs:/app/logs" command.
+
+      - name: Run Drift Check
+        env:
+          MLFLOW_TRACKING_USERNAME: ${{ secrets.MLFLOW_USERNAME }}
+          MLFLOW_TRACKING_PASSWORD: ${{ secrets.MLFLOW_PASSWORD }}
+        run: python monitoring/check_drift.py
+
+      - name: Upload Drift Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: drift-report
+          path: drift_report.html

@@ -26,7 +26,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
-        with: { python-version: '3.13' }
+        with: { python-version: "3.13" }
       - run: pip install uv
 
       # Log in to GitHub Container Registry (GHCR)
@@ -55,13 +55,15 @@ jobs:
           docker run -d \
             --name serving-app \
             -p 8080:8080 \
+            -v $(pwd)/logs:/app/logs \
+            -e LOG_DIR=/app/logs \
             -e MLFLOW_TRACKING_URI \
             -e MLFLOW_TRACKING_USERNAME \
             -e MLFLOW_TRACKING_PASSWORD \
             -e MODEL_ALIAS \
             -e MLFLOW_MODEL_NAME \
             ${{ env.REGISTRY }}/mcdoritos/laia-taxi_trip/serving:staging
-          
+
           # Wait for Flask to be ready
           sleep 10
 
