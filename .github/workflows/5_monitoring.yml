@@ -8,6 +8,8 @@ on:
 env:
   MLFLOW_TRACKING_URI: ${{ vars.MLFLOW_TRACKING_URI }}
   MLFLOW_MODEL_NAME: ${{ vars.MLFLOW_MODEL_NAME }}
+  GITHUB_TOKEN: ${{ secrets.PAT_TOKEN }}
+  DRY_RUN: "true" # <--- ENABLE TESTING MODE
 
 jobs:
   check-drift:
@@ -20,18 +22,27 @@ jobs:
 
       - run: pip install uv && uv pip install mlflow pandas evidently pyarrow
 
-      # Assuming the self-hosted runner has the logs in the relative folder 'logs'
-      # from the previous "docker run -v $(pwd)/logs:/app/logs" command.
+      # 1. Setup SSH (Copy from your deployment file)
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
 
+      # 2. FETCH THE LOGS
+      - name: Download Production Logs
+        run: |
+          mkdir -p logs
+          # Copy logs from the server to this runner
+          scp -r ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/home/admin/Desktop/Flask/serving/logs/* ./logs/ || echo "No logs found yet"
+
+          echo "Checking downloaded logs:"
+          ls -R logs/
+
+      # 3. Now run the check (It will find the files now)
       - name: Run Drift Check
         env:
           MLFLOW_TRACKING_USERNAME: ${{ secrets.MLFLOW_USERNAME }}
           MLFLOW_TRACKING_PASSWORD: ${{ secrets.MLFLOW_PASSWORD }}
         run: python monitoring/check_drift.py
-
-      - name: Upload Drift Report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: drift-report
-          path: drift_report.html

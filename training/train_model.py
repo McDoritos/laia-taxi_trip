@@ -13,9 +13,9 @@ import glob
 import pyarrow.parquet as pq
 import os
 
-# ### ADDED: Import Evidently for drift detection
+# DataDriftPreset requires two datasets. For a single baseline profile, we use DataQualityPreset.
 from evidently.report import Report
-from evidently.metric_preset import DataDriftPreset
+from evidently.metric_preset import DataDriftPreset, DataQualityPreset
 
 # ============================================================
 # CONFIGURAÇÕES INICIAIS
@@ -204,15 +204,17 @@ with mlflow.start_run(run_name="RandomForestRegressor_Training") as run:
     model.fit(X_train, y_train)
 
     # -------------------------------------------------------------
-    # ### ADDED: Capture Baseline for Drift Detection
+    # ### FIXED: Capture Baseline for Drift Detection
     # -------------------------------------------------------------
     print("Generating training data baseline report...")
     
-    # We create a Report with DataDriftPreset.
-    # reference_data=X_train: This is our baseline.
-    # current_data=None: We are not comparing yet, just establishing the baseline.
-    report = Report(metrics=[DataDriftPreset()])
-    report.run(reference_data=X_train, current_data=None)
+    # We use DataQualityPreset to capture the statistics of the training set.
+    # DataDriftPreset requires TWO datasets (ref vs curr), so we cannot use it
+    # here with only training data. This Quality report acts as the baseline profile.
+    report = Report(metrics=[DataQualityPreset()])
+    
+    # Run on X_train (single dataset mode)
+    report.run(reference_data=None, current_data=X_train)
     
     # Save the report to a JSON file
     drift_report_path = "drift_baseline.json"

@@ -65,8 +65,38 @@ def check_drift():
     
     if dataset_drift:
         print("!!! DATA DRIFT DETECTED !!!")
-        # You can add logic here to trigger a re-training workflow via GitHub API
-        sys.exit(1)
+
+        # CHECK FOR DRY RUN MODE
+        if os.environ.get("DRY_RUN") == "true":
+            print(">>> DRY RUN: Retraining triggers are disabled.")
+            print(">>> SUCCESS: The system correctly identified drift and attempted to retrain.")
+            sys.exit(0) # Exit Green (Success)
+        
+        # 1. Define the GitHub API endpoint to trigger Stage 2
+        # We trigger "2 - Continuous Delivery" (file: 2_continuous_delivery.yml)
+        repo = "mcdoritos/laia-taxi_trip" # REPLACE WITH YOUR REPO
+        workflow_id = "2_continuous_delivery.yml"
+        token = os.environ.get("GITHUB_TOKEN") # Ensure this env var is set in your YAML
+        
+        url = f"https://api.github.com/repos/{repo}/actions/workflows/{workflow_id}/dispatches"
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Accept": "application/vnd.github.v3+json"
+        }
+        data = {"ref": "main"} # The branch to run on
+
+        # 2. Trigger the Workflow
+        print(f"Triggering retraining workflow: {workflow_id}...")
+        response = requests.post(url, headers=headers, json=data)
+        
+        if response.status_code == 204:
+            print("Successfully triggered retraining.")
+        else:
+            print(f"Failed to trigger retraining: {response.status_code} - {response.text}")
+            sys.exit(1) # Exit with error if we couldn't pull the alarm
+            
+        # We exit with 0 (Success) because the drift was handled successfully
+        sys.exit(0)
     else:
         print("No drift detected.")
 
