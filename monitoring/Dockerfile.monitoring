@@ -4,8 +4,9 @@ WORKDIR /app
 
 # Install dependencies
 RUN pip install uv
-# Added 'scikit-learn' as it is often required for drift detection algorithms
-RUN uv pip install --system mlflow pandas evidently pyarrow requests scikit-learn
+
+# ADDED 'sniffio' to fix the ModuleNotFoundError
+RUN uv pip install --system mlflow pandas evidently pyarrow requests scikit-learn sniffio
 
 # Copy your monitoring code into the container
 COPY monitoring/ ./monitoring/
