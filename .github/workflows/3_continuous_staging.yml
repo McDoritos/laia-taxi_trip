@@ -30,7 +30,6 @@ jobs:
       - run: pip install uv
 
       # Log in to GitHub Container Registry (GHCR)
-      # We will get the serving image with tag staging from here to validate
       - uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
@@ -39,7 +38,7 @@ jobs:
 
       - run: docker pull ${{ env.REGISTRY }}/mcdoritos/laia-taxi_trip/serving:staging
 
-      # Since it is running on a self-hosted the serving image started on the previous stage is still active so it must be removed
+      # Cleanup old serving container if it exists
       - name: Cleanup old serving container
         run: |
           docker rm -f serving-app 2>/dev/null || true
@@ -67,14 +66,20 @@ jobs:
           # Wait for Flask to be ready
           sleep 10
 
-      # Here we are just running the same E2E tests, but in real systems we would run
-      # the system in a preproduction environment, that would manually or automatically
-      # apply  A/B testing, shadow testing and other approaches to measure
-      # and validate the performance of the model before moving to production
+      # Run E2E tests
       - run: uv run pytest tests/test_e2e.py -v
 
-      # When reaching the stage both the serving and the model will have passed
-      # the necessary tests and we promote to production
+      # --- NEW STEP TO FIX PERMISSIONS ---
+      # This runs even if tests fail (if: always)
+      # It changes ownership of the 'logs' directory back to the runner user
+      - name: Fix log permissions
+        if: always()
+        run: |
+          docker run --rm \
+            -v $(pwd)/logs:/clean_logs \
+            alpine sh -c "chown -R $(id -u):$(id -g) /clean_logs"
+      # -----------------------------------
+      # Promote model to staging
       - name: Promote model to staging
         env:
           MLFLOW_TRACKING_URI: ${{ env.MLFLOW_TRACKING_URI }}
@@ -87,7 +92,6 @@ jobs:
         run: uv run python model-promotion/promote_model.py
 
       # Tag the serving image with production tag
-      # This is the image that will be used to deploy the system
       - name: Push production container tag
         run: |
           docker tag ${{ env.REGISTRY }}/mcdoritos/laia-taxi_trip/serving:staging \

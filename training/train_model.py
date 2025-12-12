@@ -228,9 +228,7 @@ with mlflow.start_run(run_name="RandomForestRegressor_Training") as run:
 
     # Save JSON
     drift_report_path = "drift_baseline.json"
-    with open(drift_report_path, "w") as f:
-        json.dump(snapshot.dict(), f, indent=2)
-
+    snapshot.save_json(drift_report_path)
     # Log to MLflow
     mlflow.log_artifact(drift_report_path, artifact_path="drift_info")
 
