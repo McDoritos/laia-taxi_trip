@@ -57,8 +57,6 @@ jobs:
             -v $(pwd)/logs:/app/logs \
             -e LOG_DIR=/app/logs \
             -e MLFLOW_TRACKING_URI \
-            -e MLFLOW_TRACKING_USERNAME \
-            -e MLFLOW_TRACKING_PASSWORD \
             -e MODEL_ALIAS \
             -e MLFLOW_MODEL_NAME \
             ${{ env.REGISTRY }}/mcdoritos/laia-taxi_trip/serving:staging
