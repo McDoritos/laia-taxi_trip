@@ -239,8 +239,11 @@ with mlflow.start_run(run_name="RandomForestRegressor_Training") as run:
     report = Report(metrics=[DataDriftPreset()])
     # Use the same dataset as both reference and current for baseline
     report.run(current_data=train_dataset, reference_data=train_dataset)
-
-    report.save_json(drift_report_path)
+    
+    # save_json is removed in newer versions, use this instead:
+    with open(drift_report_path, "w") as f:
+        f.write(report.json())
+        
     mlflow.log_artifact(drift_report_path, artifact_path="drift_info")
     # -------------------------------------------------------------
 
