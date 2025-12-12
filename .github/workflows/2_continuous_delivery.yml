@@ -107,6 +107,7 @@ jobs:
           MLFLOW_TRACKING_URI: ${{ env.MLFLOW_TRACKING_URI }}
           MODEL_ALIAS: ${{ github.sha }}
           MLFLOW_MODEL_NAME: ${{ env.MLFLOW_MODEL_NAME }}
+          MODEL_ALIAS: ${{ github.sha }}
         run: |
           docker run -d \
             --name serving-app \
@@ -122,9 +123,9 @@ jobs:
 
       # Run end to end tests, this will test the serving app to see if it is working ok
       # Additional metrics and verification can assess performance metrics as well
-      - name: Flask verification
-        run:
-          curl http://localhost:8080/health
+      - name: Show logs
+        run: docker logs serving-app
+
       - name: Run Staging tests
         env:
           FLASK_BASE_URL: http://localhost:8080
