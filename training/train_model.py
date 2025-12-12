@@ -14,6 +14,7 @@ import pyarrow.parquet as pq
 import os
 
 # DataDriftPreset requires two datasets. For a single baseline profile, we use DataQualityPreset.
+# Defensive import so the error message is clearer if evidently is not installed or API changed.
 from evidently.report import Report
 from evidently.metric_preset import DataDriftPreset, DataQualityPreset
 

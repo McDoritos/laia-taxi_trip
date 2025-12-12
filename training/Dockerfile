@@ -1,29 +1,27 @@
-# ---- Base Python image ----
 FROM python:3.13-slim AS base
 
 # Avoid pyc & flush output
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
-# ---- Install OS deps ----
-# Removed git since we aren't pulling inside the container anymore
+# Install OS deps needed for building some Python packages
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# ---- Install uv ----
-RUN pip install uv
-
-# ---- Set work directory ----
+# Set work directory
 WORKDIR /app
 
-# ---- Copy dependency files ----
-COPY training/ .
+# Copy only requirements first to leverage Docker cache
+COPY requirements.txt /app/requirements.txt
 
-# ---- Install dependencies ----
-# Ensures reproducibility using uv
-RUN uv sync --frozen
+# Install Python dependencies
+RUN python -m pip install --upgrade pip setuptools wheel && \
+    pip install --no-cache-dir -r /app/requirements.txt
 
-# ---- Entrypoint ----
-ENTRYPOINT ["uv", "run", "python", "train_model.py"]
+# Copy application code
+COPY . /app
+
+# Default entrypoint
+ENTRYPOINT ["python", "train_model.py"]
