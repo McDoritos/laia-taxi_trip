@@ -12,7 +12,7 @@ import sys
 MODEL_NAME = os.getenv("MLFLOW_MODEL_NAME")
 ALIAS_A = os.getenv("PROD_ALIAS", "production")
 ALIAS_B = os.getenv("STAGING_ALIAS", "staging")
-DATA_ROOT = os.getenv("VALIDATION_DATA", "Dataset/2013")  # folder, not a single file
+DATA_ROOT = os.getenv("VALIDATION_DATA", "Dataset/2013")  
 
 # --- Helper to read dataset ---
 def read_dataset(root=None, sample_frac_per_file=0.05):
@@ -86,6 +86,9 @@ X_val, y_val = read_dataset(DATA_ROOT)
 client = MlflowClient(tracking_uri=os.getenv("MLFLOW_TRACKING_URI"))
 model_a = mlflow.pyfunc.load_model(f"models:/{MODEL_NAME}@{ALIAS_A}")
 model_b = mlflow.pyfunc.load_model(f"models:/{MODEL_NAME}@{ALIAS_B}")
+
+print(f"Production alias -> version {model_a.version}, run_id={model_a.run_id}")
+print(f"Staging alias    -> version {model_b.version}, run_id={model_b.run_id}")
 
 # --- Predictions ---
 y_pred_a = model_a.predict(X_val)
