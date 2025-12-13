@@ -79,7 +79,7 @@ jobs:
           STAGING_ALIAS: staging
           VALIDATION_DATA: Dataset/2013.parquet
         run: |
-          uv run python ab_test.py
+          uv run python tests/ab_test.py
 
       - uses: docker/login-action@v3
         with:
