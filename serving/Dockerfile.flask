@@ -9,7 +9,9 @@ COPY serving/* .
 RUN uv sync --frozen
 
 
-COPY entrypoint.sh /entrypoint.sh
+COPY serving/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
+# Entrypoint handles permissions, CMD runs the app
 ENTRYPOINT ["/entrypoint.sh"]
+CMD ["uv", "run", "python", "app.py"]
