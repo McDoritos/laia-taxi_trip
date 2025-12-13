@@ -201,7 +201,6 @@ if __name__ == "__main__":
         
         model.fit(X_train, y_train, categorical_feature=categorical_features)
 
-        print("4. A avaliar...")
         preds = model.predict(X_test)
         mae = mean_absolute_error(y_test, preds)
         mse = mean_squared_error(y_test, preds)
