@@ -12,4 +12,5 @@ dependencies = [
     "pytest>=8.4.2",
     "python-dotenv>=1.2.1",
     "scikit-learn>=1.6.1",
+    lightgbm = "^3.4",
 ]
