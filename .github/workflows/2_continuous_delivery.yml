@@ -108,26 +108,15 @@ jobs:
           MODEL_ALIAS: ${{ github.sha }}
           MLFLOW_MODEL_NAME: ${{ env.MLFLOW_MODEL_NAME }}
         run: |
-          RUNNER_UID=$(id -u)
-          RUNNER_GID=$(id -g)
-          mkdir -p logs
-          docker run -d --name serving-app \
+          docker run -d \
+            --name serving-app \
             -p 8080:8080 \
             -v $(pwd)/logs:/app/logs \
             -e LOG_DIR=/app/logs \
             -e MLFLOW_TRACKING_URI \
             -e MODEL_ALIAS \
             -e MLFLOW_MODEL_NAME \
-            -e ADMIN_UID=$RUNNER_UID \
-            -e ADMIN_GID=$RUNNER_GID \
-            --entrypoint sh \
-            ${{ env.REGISTRY }}/mcdoritos/laia-taxi_trip/serving:${{ github.sha }} \
-            -c "
-              mkdir -p /app/.cache /home/runner
-              export HOME=/home/runner
-              chown -R $RUNNER_UID:$RUNNER_GID /app /home/runner
-              exec gosu $RUNNER_UID:$RUNNER_GID uv run python app.py
-            "
+            ${{ env.REGISTRY }}/mcdoritos/laia-taxi_trip/serving:${{ github.sha }}
 
           sleep 10
 

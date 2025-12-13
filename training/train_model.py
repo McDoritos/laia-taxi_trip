@@ -61,14 +61,17 @@ def haversine_vectorized(lat1, lon1, lat2, lon2):
 
 
 def readDataset(root=None, sample_frac_per_file=0.05):
+    """
+    Read parquet files and return X, y for training a model compatible with the /predict payload.
+    Only uses features present in the POST /predict payload.
+    """
     use_cols = [
-        "tpep_pickup_datetime", "tpep_dropoff_datetime",
-        "pickup_datetime", "dropoff_datetime",
-        "pickup_latitude", "pickup_longitude",
-        "dropoff_latitude", "dropoff_longitude",
-        "trip_distance", "PULocationID", "DOLocationID",
-        "passenger_count", "fare_amount", "congestion_surcharge",
-        "tip_amount", "total_amount"
+        "tpep_pickup_datetime",  # only needed for deriving time features
+        "trip_distance",
+        "passenger_count",
+        "PULocationID",
+        "DOLocationID",
+        "tpep_dropoff_datetime"  # needed to compute target y
     ]
 
     if root is None:
@@ -79,69 +82,50 @@ def readDataset(root=None, sample_frac_per_file=0.05):
     if not files:
         raise FileNotFoundError(f"No parquet files found under {root}")
 
-    sampled_dfs = []
-    
-    print(f"Found {len(files)} parquet files, starting to read...")
-
+    dfs = []
     for fpath in files:
-        print(f"Reading {fpath}...")
         df = pd.read_parquet(
             fpath,
             engine="pyarrow",
             columns=[c for c in use_cols if c in pq.ParquetFile(fpath).schema.names],
         )
         if sample_frac_per_file and 0 < sample_frac_per_file < 1:
-            df = df.sample(frac=sample_frac_per_file, random_state=123) # 42, 123
-        sampled_dfs.append(df)
+            df = df.sample(frac=sample_frac_per_file, random_state=123)
+        dfs.append(df)
 
-    df = pd.concat(sampled_dfs, ignore_index=True)
+    df = pd.concat(dfs, ignore_index=True)
 
-    print(f"Loaded dataframe with {len(df)} rows and {len(df.columns)} columns")
-
-    pickup_col = "tpep_pickup_datetime" if "tpep_pickup_datetime" in df.columns else "pickup_datetime"
-    dropoff_col = "tpep_dropoff_datetime" if "tpep_dropoff_datetime" in df.columns else "dropoff_datetime"
-
+    # compute target: duration in minutes
+    pickup_col = "tpep_pickup_datetime"
+    dropoff_col = "tpep_dropoff_datetime"
     df[pickup_col] = pd.to_datetime(df[pickup_col], errors="coerce")
     df[dropoff_col] = pd.to_datetime(df[dropoff_col], errors="coerce")
-
     df["duration_min"] = (df[dropoff_col] - df[pickup_col]).dt.total_seconds() / 60.0
-    df = df[df["duration_min"].notna()]
-    df = df[(df["duration_min"] > 0.0) & (df["duration_min"] <= 24 * 60)]
+    df = df[(df["duration_min"] > 0) & (df["duration_min"] <= 24 * 60)]
 
+    # derived features from pickup timestamp
     df["pickup_hour"] = df[pickup_col].dt.hour
     df["pickup_dayofweek"] = df[pickup_col].dt.weekday
     df["pickup_month"] = df[pickup_col].dt.month
     df["is_weekend"] = df["pickup_dayofweek"].isin([5, 6]).astype(int)
-    df["season"] = df["pickup_month"].map({12:0,1:0,2:0,3:1,4:1,5:1,6:2,7:2,8:2,9:3,10:3,11:3}).astype(int)
-    df["is_rush_hour"] = df["pickup_hour"].isin([7,8,9,16,17,18,19]).astype(int)
+    df["is_rush_hour"] = df["pickup_hour"].isin([7, 8, 9, 16, 17, 18, 19]).astype(int)
 
-    if set(["pickup_latitude","pickup_longitude","dropoff_latitude","dropoff_longitude"]).issubset(df.columns):
-        df["haversine_km"] = haversine_vectorized(
-            df["pickup_latitude"].astype(float).fillna(0.0),
-            df["pickup_longitude"].astype(float).fillna(0.0),
-            df["dropoff_latitude"].astype(float).fillna(0.0),
-            df["dropoff_longitude"].astype(float).fillna(0.0),
-        )
-    else:
-        df["haversine_km"] = df["trip_distance"].fillna(0.0)
+    # location encoding
+    df["PULocationID"] = df["PULocationID"].astype("category").cat.codes
+    df["DOLocationID"] = df["DOLocationID"].astype("category").cat.codes
 
-    if "PULocationID" in df.columns:
-        df["pu_zone_code"] = df["PULocationID"].astype("category").cat.codes
-    if "DOLocationID" in df.columns:
-        df["do_zone_code"] = df["DOLocationID"].astype("category").cat.codes
-
-    df["has_congestion_fee"] = (df.get("congestion_surcharge", 0).fillna(0) > 0).astype(int)
-    df["total_amount"] = df.get("total_amount", df.get("fare_amount", 0)).fillna(0)
 
     feature_cols = [
-        "haversine_km", "trip_distance", "passenger_count", "fare_amount",
-        "pickup_hour", "pickup_dayofweek", "pickup_month", "is_weekend",
-        "season", "is_rush_hour", "has_congestion_fee", "total_amount"
+        "trip_distance",
+        "passenger_count",
+        "pickup_hour",
+        "pickup_dayofweek",
+        "pickup_month",
+        "is_weekend",
+        "is_rush_hour",
+        "PULocationID",
+        "DOLocationID",
     ]
-    if "pu_zone_code" in df.columns:
-        feature_cols.append("pu_zone_code")
-    if "do_zone_code" in df.columns:
-        feature_cols.append("do_zone_code")
 
     X = df[feature_cols].fillna(0).reset_index(drop=True)
     y = df["duration_min"].values
@@ -163,7 +147,7 @@ def prediction_table(model, X, y_true, n=None, sort_by_error=False, ascending=Fa
     return df.head(n) if n else df
 
 # ============================================================
-# TREINAMENTO E TRACKING
+# training and tracking
 # ============================================================
 
 X, y = readDataset(sample_frac_per_file=0.001)
@@ -270,7 +254,7 @@ with mlflow.start_run(run_name="RandomForestRegressor_Training") as run:
     model_uri = f"runs:/{run.info.run_id}/model"
     try:
         registered_model = mlflow.register_model(model_uri, MODEL_NAME)
-        print(f"Modelo registrado: {registered_model.name} (versão {registered_model.version})")
+        print(f"Model registered: {registered_model.name} (version {registered_model.version})")
 
         client = MlflowClient()
         # promote model to 'staging' and commit sha aliases
@@ -293,4 +277,4 @@ with mlflow.start_run(run_name="RandomForestRegressor_Training") as run:
         print(f"MLflow tracking URI: {os.getenv('MLFLOW_TRACKING_URI')}")
         raise
 
-print("\nExperimento finalizado com sucesso!")
+print("\nExperiment finalized")
