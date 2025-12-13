@@ -7,6 +7,7 @@ COPY serving/* .
 
 # Sync dependencies using uv
 RUN uv sync --frozen
+RUN apt-get update && apt-get install -y gosu && rm -rf /var/lib/apt/lists/*
 
 
 # Use uv to run the app within the virtual environment
