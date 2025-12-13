@@ -153,7 +153,7 @@ jobs:
                      ${{ env.REGISTRY }}/mcdoritos/laia-taxi_trip/serving:staging
           docker push ${{ env.REGISTRY }}/mcdoritos/laia-taxi_trip/serving:staging
 
-      # 8. Promote Model
+      # 8. Promote Model to stagin
       - name: Promote model to staging
         env:
           MLFLOW_TRACKING_URI: ${{ env.MLFLOW_TRACKING_URI }}

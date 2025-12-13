@@ -76,18 +76,7 @@ jobs:
           docker run --rm \
             -v $(pwd)/logs:/clean_logs \
             alpine sh -c "chown -R $(id -u):$(id -g) /clean_logs"
-      # -----------------------------------
-      # Promote model to staging
-      - name: Promote model to staging
-        env:
-          MLFLOW_TRACKING_URI: ${{ env.MLFLOW_TRACKING_URI }}
-          MLFLOW_TRACKING_USERNAME: ${{ secrets.MLFLOW_USERNAME }}
-          MLFLOW_TRACKING_PASSWORD: ${{ secrets.MLFLOW_PASSWORD }}
-          MLFLOW_EXPERIMENT_NAME: ${{ env.MLFLOW_EXPERIMENT_NAME }}
-          MLFLOW_MODEL_NAME: ${{ env.MLFLOW_MODEL_NAME }}
-          FROM_ALIAS: staging
-          TO_ALIAS: production
-        run: uv run python model-promotion/promote_model.py
+      
 
       # Tag the serving image with production tag
       - name: Push production container tag

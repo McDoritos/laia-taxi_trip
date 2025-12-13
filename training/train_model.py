@@ -174,12 +174,12 @@ with mlflow.start_run(run_name="LightGBM_Training") as run:
     # LightGBM fixed parameters
     # -----------------------------
     params = {
-        "n_estimators": 300,
-        "learning_rate": 0.05,
+        "n_estimators": 500,
+        "learning_rate": 0.1,
         "num_leaves": 31,
-        "max_depth": -1,
-        "subsample": 0.8,
-        "colsample_bytree": 0.8,
+        "max_depth": 10,
+        "subsample": 0.7,
+        "colsample_bytree": 0.7,
         "n_jobs": -1,
         "random_state": 123,
         "verbose": -1,
