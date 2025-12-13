@@ -73,7 +73,7 @@ def read_dataset(root=None, sample_frac_per_file=0.05):
         "PULocationID",
         "DOLocationID",
     ]
-    
+
     X = df[feature_cols].fillna(0).reset_index(drop=True)
     y = df["duration_min"].values
     return X, y
@@ -91,8 +91,8 @@ y_pred_a = model_a.predict(X_val)
 y_pred_b = model_b.predict(X_val)
 
 # --- Metrics ---
-rmse_a = mean_squared_error(y_val, y_pred_a, squared=False)
-rmse_b = mean_squared_error(y_val, y_pred_b, squared=False)
+rmse_a = np.sqrt(mean_squared_error(y_val, y_pred_a))
+rmse_b = np.sqrt(mean_squared_error(y_val, y_pred_b))
 
 print(f"Model {ALIAS_A}: RMSE={rmse_a:.3f}")
 print(f"Model {ALIAS_B}: RMSE={rmse_b:.3f}")
