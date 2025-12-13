@@ -149,7 +149,7 @@ if __name__ == "__main__":
 
     X, y, feature_names = readDataset(sample_frac_per_file=0.05)
     
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=123)
+    X_train, X_test, y_train, y_test = train_test_split(X, y, train_size=0.05, random_state=123)
 
     # Categorical features 
     categorical_features = ["pu_zone_code", "do_zone_code", "is_weekend", "is_rush_hour", "season"]
