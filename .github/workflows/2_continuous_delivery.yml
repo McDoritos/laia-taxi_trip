@@ -112,7 +112,9 @@ jobs:
             --name serving-app \
             -p 8080:8080 \
             -v $(pwd)/logs:/app/logs \
+            -v $(pwd)/.cache:/app/.cache \
             -e LOG_DIR=/app/logs \
+            -e XDG_CACHE_HOME=/app/.cache \
             -e MLFLOW_TRACKING_URI \
             -e MODEL_ALIAS \
             -e MLFLOW_MODEL_NAME \
