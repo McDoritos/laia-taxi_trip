@@ -116,8 +116,8 @@ jobs:
             -e MLFLOW_TRACKING_URI \
             -e MODEL_ALIAS \
             -e MLFLOW_MODEL_NAME \
-            --user "$(id -u):$(id -g)" \         
-            -e ADMIN_UID=$(id -u) \               
+            --user "$(id -u):$(id -g)" \
+            -e ADMIN_UID=$(id -u) \
             -e ADMIN_GID=$(id -g) \
             ${{ env.REGISTRY }}/mcdoritos/laia-taxi_trip/serving:${{ github.sha }}
 
