@@ -63,7 +63,6 @@ def read_dataset(root=None, sample_frac_per_file=0.05):
     df["DOLocationID"] = df["DOLocationID"].astype("category").cat.codes
 
     feature_cols = [
-        "VendorID",
         "trip_distance",
         "passenger_count",
         "pickup_hour",
@@ -74,6 +73,7 @@ def read_dataset(root=None, sample_frac_per_file=0.05):
         "PULocationID",
         "DOLocationID",
     ]
+    
     X = df[feature_cols].fillna(0).reset_index(drop=True)
     y = df["duration_min"].values
     return X, y
