@@ -5,7 +5,7 @@ import json
 import time
 import os
 
-FLASK_BASE_URL = os.getenv("FLASK_BASE_URL", "http://localhost:8080")
+FLASK_BASE_URL = os.getenv("FLASK_BASE_URL", "http://localhost:9001")
 # MLflow is remote, not tested directly in E2E
 
 def wait_for_service(url, timeout=30, interval=2):
