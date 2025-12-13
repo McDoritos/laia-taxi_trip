@@ -15,4 +15,4 @@ chmod -R 777 "$LOG_DIR"
 echo "Log directory ready:"
 ls -ld "$LOG_DIR"
 
-exec python app.py
+exec uv run python app.py
