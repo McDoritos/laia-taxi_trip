@@ -4,8 +4,6 @@ import pandas as pd
 import numpy as np
 import os
 import json
-import pwd
-import grp
 
 LOG_FILE = "logs/inference_logs.jsonl"
 
@@ -19,15 +17,12 @@ def log_inference(df: pd.DataFrame, predictions):
         predictions: List or array of predictions.
     """
     os.makedirs(os.path.dirname(LOG_FILE), exist_ok=True)
+
     records = df.to_dict(orient="records")
-
-    for row, pred in zip(records, predictions.tolist()):
-        row['_prediction'] = pred
-        with open(LOG_FILE, "a") as f:
+    with open(LOG_FILE, "a", encoding="utf-8") as f:
+        for row, pred in zip(records, predictions.tolist()):
+            row['_prediction'] = pred
             f.write(json.dumps(row) + "\n")
-
-
-    os.chmod(LOG_FILE, 0o666)
 
 
 # Allow all hosts to connect to Mlflow
