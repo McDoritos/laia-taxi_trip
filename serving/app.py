@@ -69,7 +69,7 @@ def predict():
     if 'data' not in json_input:
         return jsonify({"error": "Missing 'data' in request"}), 400
 
-    df = pd.DataFrame(json_input['data'])
+    df = pd.DataFrame(json_input['data'], columns=json_input['columns'])
 
     # --- DERIVED FEATURES ---
     df["tpep_pickup_datetime"] = pd.to_datetime(df["tpep_pickup_datetime"], errors="coerce")
