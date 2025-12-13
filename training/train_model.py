@@ -164,12 +164,12 @@ if __name__ == "__main__":
         
         # Parâmetros específicos do LightGBM
         param_dist = {
-            "n_estimators": [300, 500, 800],
-            "learning_rate": [0.01, 0.05, 0.1],
-            "num_leaves": [31, 50, 70],         # Controla complexidade da árvore
-            "max_depth": [-1, 10, 15, 20],      # -1 significa sem limite (controlado por num_leaves)
-            "subsample": [0.7, 0.8, 1.0],
-            "colsample_bytree": [0.7, 0.8, 1.0]
+            "n_estimators": [300, 500],
+            "learning_rate": [0.05, 0.1],
+            "num_leaves": [31, 50],
+            "max_depth": [-1, 10],
+            "subsample": [0.8, 1.0],
+            "colsample_bytree": [0.8, 1.0],
         }
 
         lgbm = LGBMRegressor(n_jobs=-1, random_state=123, verbose=-1)
@@ -177,8 +177,8 @@ if __name__ == "__main__":
         search = RandomizedSearchCV(
             lgbm,
             param_distributions=param_dist,
-            n_iter=10, 
-            cv=3,
+            n_iter=8, 
+            cv=2,
             scoring='neg_mean_absolute_error',
             verbose=1,
             n_jobs=-1
