@@ -98,11 +98,11 @@ def test_prediction_single_sample():
     assert response.status_code == 200
     data = response.json()
 
-    # Adaptação: aceitar lista direta
+    # Adaptação: aceitar lista direta ou dicionário com "predictions"
     if isinstance(data, dict) and "predictions" in data:
         preds = data["predictions"]
     else:
-        preds = data  # formato atual: lista direta
+        preds = data
 
     assert len(preds) == 1
     assert isinstance(preds[0], (float, int))
@@ -124,11 +124,11 @@ def test_prediction_multiple_samples():
     assert response.status_code == 200
     data = response.json()
 
-    # Adaptação: aceitar lista direta
+    # Adaptação: aceitar lista direta ou dicionário com "predictions"
     if isinstance(data, dict) and "predictions" in data:
         preds = data["predictions"]
     else:
-        preds = data  # formato atual: lista direta
+        preds = data
 
     assert len(preds) == 3
     for p in preds:
@@ -181,13 +181,11 @@ def test_concurrent_predictions():
         requests.get(f"{FLASK_BASE_URL}/reload")
         time.sleep(2)
 
-    # Payload de acordo com as features usadas no treino do modelo
     payload = {
         "data": SAMPLE_FEATURES,
         "columns": TAXI_FEATURE_COLUMNS
     }
 
-    # Make multiple requests quickly
     responses = []
     for _ in range(5):
         response = requests.post(
@@ -197,8 +195,14 @@ def test_concurrent_predictions():
         )
         responses.append(response)
 
-    # All should succeed
     for response in responses:
         assert response.status_code == 200
         data = response.json()
-        assert 'predictions' in data
+        # se a API retornar dicionário ou lista, normalize
+        if isinstance(data, dict):
+            preds = data.get("predictions", [])
+        else:
+            preds = data
+        assert isinstance(preds, list)
+        assert all(isinstance(p, (float, int)) for p in preds)
+        assert len(preds) == 1 

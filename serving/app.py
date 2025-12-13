@@ -4,6 +4,8 @@ import pandas as pd
 import numpy as np
 import os
 import json
+import pwd
+import grp
 
 LOG_FILE = "logs/inference_logs.jsonl"
 
@@ -17,14 +19,24 @@ def log_inference(df: pd.DataFrame, predictions):
         predictions: List or array of predictions.
     """
     os.makedirs(os.path.dirname(LOG_FILE), exist_ok=True)
-    
     records = df.to_dict(orient="records")
-    
-    # Combine input features with predictions
+
     for row, pred in zip(records, predictions.tolist()):
-        row['_prediction'] = pred  # store prediction alongside input
+        row['_prediction'] = pred
         with open(LOG_FILE, "a") as f:
             f.write(json.dumps(row) + "\n")
+
+    # Corrigir permissões
+    os.chmod(LOG_FILE, 0o664)  # rw-rw-r--
+
+    try:
+        # Forçar dono admin (usuário dentro do container)
+        uid = pwd.getpwnam("admin").pw_uid
+        gid = grp.getgrnam("admin").gr_gid
+        os.chown(LOG_FILE, uid, gid)
+    except KeyError:
+        # Se usuário "admin" não existir, apenas ignora
+        pass
 
 # Allow all hosts to connect to Mlflow
 os.environ["MLFLOW_ALLOWED_HOSTS"] = "*"
