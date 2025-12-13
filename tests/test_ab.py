@@ -84,11 +84,15 @@ X_val, y_val = read_dataset(DATA_ROOT)
 
 # --- Load models ---
 client = MlflowClient(tracking_uri=os.getenv("MLFLOW_TRACKING_URI"))
+prod_info = client.get_latest_versions(name=MODEL_NAME, stages=[ALIAS_A])[0]
+staging_info = client.get_latest_versions(name=MODEL_NAME, stages=[ALIAS_B])[0]
+
+print(f"Production alias -> version {prod_info.version}, run_id={prod_info.run_id}")
+print(f"Staging alias    -> version {staging_info.version}, run_id={staging_info.run_id}")
+
+# --- Load models via the aliases ---
 model_a = mlflow.pyfunc.load_model(f"models:/{MODEL_NAME}@{ALIAS_A}")
 model_b = mlflow.pyfunc.load_model(f"models:/{MODEL_NAME}@{ALIAS_B}")
-
-print(f"Production alias -> version {model_a.version}, run_id={model_a.run_id}")
-print(f"Staging alias    -> version {model_b.version}, run_id={model_b.run_id}")
 
 # --- Predictions ---
 y_pred_a = model_a.predict(X_val)
