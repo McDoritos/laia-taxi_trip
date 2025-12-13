@@ -69,7 +69,7 @@ def predict():
     if 'data' not in json_input:
         return jsonify({"error": "Missing 'data' in request"}), 400
 
-    df = pd.DataFrame(json_input['data'], columns=json_input['columns'])
+    df = pd.DataFrame(json_input['data'])
 
     # --- DERIVED FEATURES ---
     df["tpep_pickup_datetime"] = pd.to_datetime(df["tpep_pickup_datetime"], errors="coerce")
@@ -106,7 +106,7 @@ def predict():
     predictions = model.predict(X)
     log_inference(X, predictions)
 
-    return jsonify(predictions.tolist())
+    return jsonify({"predictions": predictions.tolist()})
 
 @app.route("/reload", methods=["GET"])
 def reload_model():
