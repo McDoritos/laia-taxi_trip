@@ -109,14 +109,15 @@ jobs:
           MLFLOW_MODEL_NAME: ${{ env.MLFLOW_MODEL_NAME }}
         run: |
           docker run -d \
-            --name serving-app \
-            -p 8080:8080 \
-            -v $(pwd)/logs:/app/logs \
-            -e LOG_DIR=/app/logs \
-            -e MLFLOW_TRACKING_URI \
-            -e MODEL_ALIAS \
-            -e MLFLOW_MODEL_NAME \
-            ${{ env.REGISTRY }}/mcdoritos/laia-taxi_trip/serving:${{ github.sha }}
+          --name serving-app \
+          -p 9001:8080 \
+          -v $(pwd)/logs:/app/logs \
+          -e MLFLOW_TRACKING_URI \
+          -e MODEL_ALIAS \
+          -e MLFLOW_MODEL_NAME \
+          -e HOST_UID=$(id -u) \
+          -e HOST_GID=$(id -g) \
+          ${{ env.REGISTRY }}/mcdoritos/laia-taxi_trip/serving:${{ github.sha }}
 
           sleep 10
 
@@ -127,7 +128,7 @@ jobs:
 
       - name: Run Staging tests
         env:
-          FLASK_BASE_URL: http://localhost:8080
+          FLASK_BASE_URL: http://localhost:9001
         run: uv run pytest tests/test_e2e.py -v
 
       - name: Show container logs on failure

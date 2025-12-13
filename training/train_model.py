@@ -47,6 +47,10 @@ mlflow.set_experiment(EXP_NAME)
 # ============================================================
 
 def readDataset(root=None, sample_frac_per_file=0.05):
+    """
+    Read parquet files and return X, y for training a model compatible with the /predict payload.
+    Only uses features present in the POST /predict payload.
+    """
     use_cols = [
         "tpep_pickup_datetime", "tpep_dropoff_datetime",
         "pickup_datetime", "dropoff_datetime",
@@ -90,12 +94,12 @@ def readDataset(root=None, sample_frac_per_file=0.05):
 
     df[pickup_col] = pd.to_datetime(df[pickup_col], errors="coerce")
     df[dropoff_col] = pd.to_datetime(df[dropoff_col], errors="coerce")
-
     df["duration_min"] = (df[dropoff_col] - df[pickup_col]).dt.total_seconds() / 60.0
     df = df[df["duration_min"].notna()]
     df = df[(df["duration_min"] > 1.0) & (df["duration_min"] <= 240.0)]
     df = df[df["trip_distance"] > 0.0]
 
+    # derived features from pickup timestamp
     df["pickup_hour"] = df[pickup_col].dt.hour
     df["pickup_dayofweek"] = df[pickup_col].dt.weekday
     df["pickup_month"] = df[pickup_col].dt.month
@@ -108,8 +112,6 @@ def readDataset(root=None, sample_frac_per_file=0.05):
     if "DOLocationID" in df.columns:
         df["do_zone_code"] = df["DOLocationID"].fillna(-1).astype("category").cat.codes
 
-    df["has_congestion_fee"] = (df.get("congestion_surcharge", 0).fillna(0) > 0).astype(int)
-    df["total_amount"] = df.get("total_amount", df.get("fare_amount", 0)).fillna(0)
 
     feature_cols = [
         "trip_distance", "passenger_count", "fare_amount",
