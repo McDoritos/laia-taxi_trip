@@ -31,7 +31,7 @@ def wait_for_services():
 
     print("Flask service ready!")
 
-SAMPLE_FWEATURES = [
+SAMPLE_FEATURES = [
     {
             "VendorID": 2,
             "tpep_pickup_datetime": "2011-01-01 00:10:00",
