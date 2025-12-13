@@ -35,6 +35,52 @@ jobs:
       # Also, in real setups the infra will be decoupled from the models. Here everything moves forward together
       # but if we only change the model it is not necessary to redeploy the infrascruture. Serving frameworks
       # such as TF serving can manage model A/B testing, rollout, rollback, ...
+      # 1. Install DVC and SSH support
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.13" }
+      - run: pip install uv "dvc[ssh]"
+
+      # 2. Setup SSH for DVC (Connects to internal server)
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DVC_SSH_KEY }}" > ~/.ssh/dvc_runner_key
+          chmod 600 ~/.ssh/dvc_runner_key
+
+          # SSH precisa saber qual chave usar:
+          echo "Host the-traffickers-internal.dei.uc.pt
+              IdentityFile ~/.ssh/dvc_runner_key
+              StrictHostKeyChecking no" >> ~/.ssh/config
+
+      # --- ADD THIS STEP HERE ---
+      - name: Clean DVC Cache
+        run: |
+          echo "Cleaning .dvc/cache to prevent corruption on self-hosted runner..."
+          rm -rf .dvc/cache
+      # --------------------------
+      # 3. Pull Data from Remote Storage
+      - name: DVC Pull
+        run: dvc pull -v --jobs 1 Dataset/2013.dvc
+      # 4. DEBUG: Verify Data Existence
+      # This step checks if 'Dataset' folder exists and has the parquet file.
+      # If this fails, it means your DVC tracked folder is named something else!
+      - name: Check Data Path
+        run: |
+          echo "Checking contents of workspace..."
+          ls -F
+          echo "Checking contents of Dataset folder..."
+          ls -F Dataset/ || echo "WARNING: Dataset folder not found in root!"
+
+      - name: Run A/B Test
+        env:
+          MLFLOW_TRACKING_URI: ${{ env.MLFLOW_TRACKING_URI }}
+          MLFLOW_MODEL_NAME: ${{ env.MLFLOW_MODEL_NAME }}
+          PROD_ALIAS: production
+          STAGING_ALIAS: staging
+          VALIDATION_DATA: Dataset/2013.parquet
+        run: |
+          uv run python ab_test.py
+
       - uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
