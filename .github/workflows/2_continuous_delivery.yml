@@ -116,6 +116,7 @@ jobs:
             -e MLFLOW_TRACKING_URI \
             -e MODEL_ALIAS \
             -e MLFLOW_MODEL_NAME \
+            -u $(id -u):$(id -g) \
             ${{ env.REGISTRY }}/mcdoritos/laia-taxi_trip/serving:${{ github.sha }}
 
           sleep 10
