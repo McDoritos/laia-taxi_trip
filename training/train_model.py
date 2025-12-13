@@ -157,7 +157,14 @@ X, y = readDataset(sample_frac_per_file=0.001)
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=123) # 42, 123
 
 categorical_features = [
-    c for c in ["pu_zone_code", "do_zone_code", "is_weekend", "is_rush_hour"]
+    c for c in [
+        "pickup_dayofweek",
+        "pickup_month",
+        "is_weekend",
+        "is_rush_hour",
+        "PULocationID",
+        "DOLocationID",
+    ]
     if c in X_train.columns
 ]
 
