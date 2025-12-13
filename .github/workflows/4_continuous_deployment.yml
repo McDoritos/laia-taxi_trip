@@ -71,6 +71,13 @@ jobs:
           echo "Checking contents of Dataset folder..."
           ls -F Dataset/ || echo "WARNING: Dataset folder not found in root!"
 
+      - name: Check Data Path
+        run: |
+          echo "Checking contents of workspace..."
+          ls -F
+          echo "Checking contents of tests folder..."
+          ls -F tests/ || echo "WARNING: tests folder not found in root!"
+
       - name: Run A/B Test
         env:
           MLFLOW_TRACKING_URI: ${{ env.MLFLOW_TRACKING_URI }}
@@ -78,8 +85,7 @@ jobs:
           PROD_ALIAS: production
           STAGING_ALIAS: staging
           VALIDATION_DATA: Dataset/2013.parquet
-        run: |
-          uv run python tests/ab_test.py
+        run: uv run python tests/ab_test.py
 
       - uses: docker/login-action@v3
         with:
