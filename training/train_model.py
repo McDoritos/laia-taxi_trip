@@ -84,6 +84,7 @@ def readDataset(root=None, sample_frac_per_file=0.05):
 
     dfs = []
     for fpath in files:
+        print(f"reading file: {fpath}")
         df = pd.read_parquet(
             fpath,
             engine="pyarrow",

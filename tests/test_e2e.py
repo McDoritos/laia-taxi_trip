@@ -32,28 +32,22 @@ def wait_for_services():
     print("Flask service ready!")
 
 TAXI_FEATURE_COLUMNS = [
-    "haversine_km", "trip_distance", "passenger_count", "fare_amount",
-    "pickup_hour", "pickup_dayofweek", "pickup_month", "is_weekend",
-    "season", "is_rush_hour", "has_congestion_fee", "total_amount",
-    "pu_zone_code", "do_zone_code"
+    "VendorID",
+    "tpep_pickup_datetime",
+    "passenger_count",
+    "trip_distance",
+    "PULocationID",
+    "DOLocationID"
 ]
 
 SAMPLE_FEATURES = [
     [
-        2.8,  # haversine_km
-        3.1,  # trip_distance
-        1,    # passenger_count
-        12.5, # fare_amount
-        14,   # pickup_hour
-        3,    # pickup_dayofweek
-        6,    # pickup_month
-        0,    # is_weekend
-        2,    # season
-        1,    # is_rush_hour
-        1,    # has_congestion_fee
-        14.8, # total_amount
-        125,  # pu_zone_code
-        87    # do_zone_code
+        2,                         # VendorID
+        "2011-01-01 00:10:00",     # tpep_pickup_datetime
+        4,                         # passenger_count
+        1.2,                       # trip_distance
+        145,                       # PULocationID
+        145                        # DOLocationID
     ]
 ]
 
@@ -97,12 +91,7 @@ def test_prediction_single_sample():
 
     assert response.status_code == 200
     data = response.json()
-
-    # Adaptação: aceitar lista direta ou dicionário com "predictions"
-    if isinstance(data, dict) and "predictions" in data:
-        preds = data["predictions"]
-    else:
-        preds = data
+    preds = data if isinstance(data, list) else data.get("predictions", [])
 
     assert len(preds) == 1
     assert isinstance(preds[0], (float, int))
@@ -123,12 +112,7 @@ def test_prediction_multiple_samples():
 
     assert response.status_code == 200
     data = response.json()
-
-    # Adaptação: aceitar lista direta ou dicionário com "predictions"
-    if isinstance(data, dict) and "predictions" in data:
-        preds = data["predictions"]
-    else:
-        preds = data
+    preds = data if isinstance(data, list) else data.get("predictions", [])
 
     assert len(preds) == 3
     for p in preds:
@@ -198,11 +182,9 @@ def test_concurrent_predictions():
     for response in responses:
         assert response.status_code == 200
         data = response.json()
-        # se a API retornar dicionário ou lista, normalize
-        if isinstance(data, dict):
-            preds = data.get("predictions", [])
-        else:
-            preds = data
+
+        preds = data if isinstance(data, list) else data.get("predictions", [])
+
         assert isinstance(preds, list)
         assert all(isinstance(p, (float, int)) for p in preds)
         assert len(preds) == 1 
