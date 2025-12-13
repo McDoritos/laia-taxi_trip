@@ -116,6 +116,9 @@ jobs:
             -e MLFLOW_TRACKING_URI \
             -e MODEL_ALIAS \
             -e MLFLOW_MODEL_NAME \
+            --user "$(id -u):$(id -g)" \          # <-- run every process as the runner UID
+            -e ADMIN_UID=$(id -u) \               # <-- tell app.py which UID to chown to
+            -e ADMIN_GID=$(id -g) \
             ${{ env.REGISTRY }}/mcdoritos/laia-taxi_trip/serving:${{ github.sha }}
 
           sleep 10
