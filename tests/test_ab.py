@@ -6,6 +6,7 @@ from mlflow.tracking import MlflowClient
 import mlflow.pyfunc
 from sklearn.metrics import mean_squared_error
 import pyarrow.parquet as pq
+import sys
 
 # --- Config ---
 MODEL_NAME = os.getenv("MLFLOW_MODEL_NAME")
@@ -99,5 +100,7 @@ print(f"Model {ALIAS_B}: RMSE={rmse_b:.3f}")
 
 if rmse_b < rmse_a:
     print(f"Model {ALIAS_B} performs better. Promote to production!")
+    sys.exit(0)  # success → deploy
 else:
-    print(f"Model {ALIAS_A} remains in production.")
+    print(f"Model {ALIAS_A} remains in production. Skipping promotion.")
+    sys.exit(1)  # failure → skip deploy
