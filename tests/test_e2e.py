@@ -31,24 +31,15 @@ def wait_for_services():
 
     print("Flask service ready!")
 
-TAXI_FEATURE_COLUMNS = [
-    "VendorID",
-    "tpep_pickup_datetime",
-    "passenger_count",
-    "trip_distance",
-    "PULocationID",
-    "DOLocationID"
-]
-
-SAMPLE_FEATURES = [
-    [
-        2,                         # VendorID
-        "2011-01-01 00:10:00",     # tpep_pickup_datetime
-        4,                         # passenger_count
-        1.2,                       # trip_distance
-        145,                       # PULocationID
-        145                        # DOLocationID
-    ]
+SAMPLE_FWEATURES = [
+    {
+            "VendorID": 2,
+            "tpep_pickup_datetime": "2011-01-01 00:10:00",
+            "passenger_count": 4,
+            "trip_distance": 1.2,
+            "PULocationID": 145,
+            "DOLocationID": 145
+    }
 ]
 
 
@@ -79,8 +70,7 @@ def test_flask_model_loaded():
 
 def test_prediction_single_sample():
     payload = {
-        "data": SAMPLE_FEATURES,
-        "columns": TAXI_FEATURE_COLUMNS
+        "data": SAMPLE_FEATURES
     }
 
     response = requests.post(
@@ -100,8 +90,7 @@ def test_prediction_single_sample():
 
 def test_prediction_multiple_samples():
     payload = {
-        "data": SAMPLE_FEATURES * 3,
-        "columns": TAXI_FEATURE_COLUMNS
+        "data": SAMPLE_FEATURES * 3
     }
 
     response = requests.post(
@@ -166,8 +155,7 @@ def test_concurrent_predictions():
         time.sleep(2)
 
     payload = {
-        "data": SAMPLE_FEATURES,
-        "columns": TAXI_FEATURE_COLUMNS
+        "data": SAMPLE_FEATURES
     }
 
     responses = []
