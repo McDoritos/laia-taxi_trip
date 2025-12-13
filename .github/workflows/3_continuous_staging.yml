@@ -64,7 +64,7 @@ jobs:
       # Run E2E tests
       - name: Run Staging tests
         env:
-          FLASK_BASE_URL: http://localhost:8080
+          FLASK_BASE_URL: http://localhost:9001
         run: uv run pytest tests/test_e2e.py -v
 
       # --- NEW STEP TO FIX PERMISSIONS ---
