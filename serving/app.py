@@ -24,6 +24,8 @@ def log_inference(df: pd.DataFrame, predictions):
             row['_prediction'] = pred
             f.write(json.dumps(row) + "\n")
 
+    os.chmod(LOG_FILE, 0o666)
+
 
 # Allow all hosts to connect to Mlflow
 os.environ["MLFLOW_ALLOWED_HOSTS"] = "*"
