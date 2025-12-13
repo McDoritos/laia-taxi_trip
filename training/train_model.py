@@ -1,25 +1,21 @@
 import mlflow
 from mlflow.tracking import MlflowClient
-from sklearn.datasets import load_iris
-from sklearn.linear_model import LogisticRegression
+
 from sklearn.model_selection import train_test_split, RandomizedSearchCV
 from sklearn.metrics import mean_absolute_error, r2_score, mean_squared_error
-from sklearn.ensemble import RandomForestRegressor
-import matplotlib.pyplot as plt
+
+from lightgbm import LGBMRegressor
+
 import pandas as pd
 import numpy as np
 import os
 import glob
 import pyarrow.parquet as pq
-import os
-import json
-from evidently import Dataset
-from evidently import DataDefinition
-from evidently import Report
-from evidently.presets import DataDriftPreset, DataSummaryPreset 
+
 # ============================================================
 # CONFIGURAÇÕES INICIAIS
 # ============================================================
+
 
 COMMIT_SHA = os.getenv('COMMIT_SHA', 'local-dev')
 if not COMMIT_SHA:
@@ -37,42 +33,30 @@ TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI", "https://the-traffickers.dei.uc.
 if not TRACKING_URI:
     raise EnvironmentError("Missing required env var: MLFLOW_TRACKING_URI")
 
-# Read the variables
-PATH_DATASET = os.getenv('PATH_DATASET',"../Dataset/")
+if not all([COMMIT_SHA, MODEL_NAME, EXP_NAME, TRACKING_URI]):
+    raise EnvironmentError("Missing critical environment variables")
 
-# MLflow remoto (alterar IP conforme o servidor)
+PATH_DATASET = os.getenv('PATH_DATASET',"../Dataset")
+
 mlflow.set_tracking_uri(TRACKING_URI)
-
-# Criar ou obter o experimento
 mlflow.set_experiment(EXP_NAME)
 
-# ============================================================
-# FUNÇÕES AUXILIARES
-# ============================================================
 
-def haversine_vectorized(lat1, lon1, lat2, lon2):
-    R = 6371.0
-    lat1, lon1, lat2, lon2 = map(np.radians, (lat1, lon1, lat2, lon2))
-    dlat = lat2 - lat1
-    dlon = lon2 - lon1
-    a = np.sin(dlat / 2.0) ** 2 + np.cos(lat1) * np.cos(lat2) * np.sin(dlon / 2.0) ** 2
-    c = 2 * np.arcsin(np.sqrt(a))
-    return R * c
-
+# ============================================================
+# LEITURA DE DADOS
+# ============================================================
 
 def readDataset(root=None, sample_frac_per_file=0.05):
     use_cols = [
         "tpep_pickup_datetime", "tpep_dropoff_datetime",
         "pickup_datetime", "dropoff_datetime",
-        "pickup_latitude", "pickup_longitude",
-        "dropoff_latitude", "dropoff_longitude",
         "trip_distance", "PULocationID", "DOLocationID",
         "passenger_count", "fare_amount", "congestion_surcharge",
-        "tip_amount", "total_amount"
+        "total_amount"
     ]
 
     if root is None:
-        root = os.environ.get("PATH_DATASET", "/app/Dataset/")
+        root = PATH_DATASET
 
     pattern = os.path.join(root, "**", "yellow_tripdata_*.parquet")
     files = sorted(glob.glob(pattern, recursive=True))
@@ -80,22 +64,25 @@ def readDataset(root=None, sample_frac_per_file=0.05):
         raise FileNotFoundError(f"No parquet files found under {root}")
 
     sampled_dfs = []
-    
+
     print(f"Found {len(files)} parquet files, starting to read...")
 
     for fpath in files:
+        file_cols = pq.ParquetFile(fpath).schema.names
+        actual_cols = [c for c in use_cols if c in file_cols]
+        
         print(f"Reading {fpath}...")
-        df = pd.read_parquet(
-            fpath,
-            engine="pyarrow",
-            columns=[c for c in use_cols if c in pq.ParquetFile(fpath).schema.names],
-        )
+        
+        df = pd.read_parquet(fpath, engine="pyarrow", columns=actual_cols)
+        
         if sample_frac_per_file and 0 < sample_frac_per_file < 1:
-            df = df.sample(frac=sample_frac_per_file, random_state=123) # 42, 123
+            df = df.sample(frac=sample_frac_per_file, random_state=123)
         sampled_dfs.append(df)
 
-    df = pd.concat(sampled_dfs, ignore_index=True)
+    if not sampled_dfs:
+        raise ValueError("Non data loaded.")
 
+    df = pd.concat(sampled_dfs, ignore_index=True)
     print(f"Loaded dataframe with {len(df)} rows and {len(df.columns)} columns")
 
     pickup_col = "tpep_pickup_datetime" if "tpep_pickup_datetime" in df.columns else "pickup_datetime"
@@ -106,7 +93,8 @@ def readDataset(root=None, sample_frac_per_file=0.05):
 
     df["duration_min"] = (df[dropoff_col] - df[pickup_col]).dt.total_seconds() / 60.0
     df = df[df["duration_min"].notna()]
-    df = df[(df["duration_min"] > 0.0) & (df["duration_min"] <= 24 * 60)]
+    df = df[(df["duration_min"] > 1.0) & (df["duration_min"] <= 240.0)]
+    df = df[df["trip_distance"] > 0.0]
 
     df["pickup_hour"] = df[pickup_col].dt.hour
     df["pickup_dayofweek"] = df[pickup_col].dt.weekday
@@ -115,40 +103,28 @@ def readDataset(root=None, sample_frac_per_file=0.05):
     df["season"] = df["pickup_month"].map({12:0,1:0,2:0,3:1,4:1,5:1,6:2,7:2,8:2,9:3,10:3,11:3}).astype(int)
     df["is_rush_hour"] = df["pickup_hour"].isin([7,8,9,16,17,18,19]).astype(int)
 
-    if set(["pickup_latitude","pickup_longitude","dropoff_latitude","dropoff_longitude"]).issubset(df.columns):
-        df["haversine_km"] = haversine_vectorized(
-            df["pickup_latitude"].astype(float).fillna(0.0),
-            df["pickup_longitude"].astype(float).fillna(0.0),
-            df["dropoff_latitude"].astype(float).fillna(0.0),
-            df["dropoff_longitude"].astype(float).fillna(0.0),
-        )
-    else:
-        df["haversine_km"] = df["trip_distance"].fillna(0.0)
-
     if "PULocationID" in df.columns:
-        df["pu_zone_code"] = df["PULocationID"].astype("category").cat.codes
+        df["pu_zone_code"] = df["PULocationID"].fillna(-1).astype("category").cat.codes
     if "DOLocationID" in df.columns:
-        df["do_zone_code"] = df["DOLocationID"].astype("category").cat.codes
+        df["do_zone_code"] = df["DOLocationID"].fillna(-1).astype("category").cat.codes
 
     df["has_congestion_fee"] = (df.get("congestion_surcharge", 0).fillna(0) > 0).astype(int)
     df["total_amount"] = df.get("total_amount", df.get("fare_amount", 0)).fillna(0)
 
     feature_cols = [
-        "haversine_km", "trip_distance", "passenger_count", "fare_amount",
+        "trip_distance", "passenger_count", "fare_amount",
         "pickup_hour", "pickup_dayofweek", "pickup_month", "is_weekend",
-        "season", "is_rush_hour", "has_congestion_fee", "total_amount"
+        "season", "is_rush_hour", "has_congestion_fee", "total_amount",
+        "pu_zone_code", "do_zone_code"
     ]
-    if "pu_zone_code" in df.columns:
-        feature_cols.append("pu_zone_code")
-    if "do_zone_code" in df.columns:
-        feature_cols.append("do_zone_code")
+    
+    feature_cols = [c for c in feature_cols if c in df.columns]
 
     X = df[feature_cols].fillna(0).reset_index(drop=True)
     y = df["duration_min"].values
-    return X, y
+    return X, y, feature_cols
 
-
-def prediction_table(model, X, y_true, n=None, sort_by_error=False, ascending=False, save_csv=None):
+def prediction_table(model, X, y_true, n=None, sort_by_error=False, save_csv=None):
     preds = model.predict(X)
     df = pd.DataFrame({
         "y_true": y_true,
@@ -157,140 +133,110 @@ def prediction_table(model, X, y_true, n=None, sort_by_error=False, ascending=Fa
         "abs_error": np.abs(preds - y_true)
     })
     if sort_by_error:
-        df = df.sort_values("abs_error", ascending=ascending)
+        df = df.sort_values("abs_error", ascending=False)
     if save_csv:
         df.to_csv(save_csv, index=False)
     return df.head(n) if n else df
 
 # ============================================================
-# TREINAMENTO E TRACKING
+# MAIN FLOW
 # ============================================================
 
-X, y = readDataset(sample_frac_per_file=0.001)
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=123) # 42, 123
+if __name__ == "__main__":
+    print("Loading data")
 
-# Inicia o run de MLflow
-with mlflow.start_run(run_name="RandomForestRegressor_Training") as run:
-    n_estimators = 100
-    max_depth = 10
-    min_samples_split = 10
-
-    mlflow.log_param("n_estimators", n_estimators)
-    mlflow.log_param("max_depth", max_depth)
-    mlflow.log_param("min_samples_split", min_samples_split)
-
-    # -------------------------------------------------------------
-    # ### ADDED: Save Reference Data for Drift Detection
-    # -------------------------------------------------------------
-    # We save the training features to a parquet file. 
-    # This file will be downloaded by the monitoring system to compare against live traffic.
-    ref_path = "reference.parquet"
-    X_train.to_parquet(ref_path)
+    X, y, feature_names = readDataset(sample_frac_per_file=0.05)
     
-    print(f"Logging reference data to MLflow: {ref_path}")
-    # We store it in a 'drift_info' folder inside the artifacts
-    mlflow.log_artifact(ref_path, artifact_path="drift_info")
-    # -------------------------------------------------------------
-    
-    model = RandomForestRegressor(
-        n_estimators=n_estimators,
-        max_depth=max_depth,
-        min_samples_split=min_samples_split,
-        n_jobs=-1,
-        random_state=123 # 42, 123
-    )
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=123)
 
-    print("Training RandomForest...")
-    model.fit(X_train, y_train)
+    # Categorical features 
+    categorical_features = ["pu_zone_code", "do_zone_code", "is_weekend", "is_rush_hour", "season"]
+    categorical_features = [c for c in categorical_features if c in feature_names]
 
-   # -------------------------------------------------------------
-    # ### Capture Baseline for Drift Detection (Evidently 0.7+)
-    # -------------------------------------------------------------
-    print("Generating training data baseline report...")
+    with mlflow.start_run(run_name="LightGBM_Optimized") as run:
+        
+        print("Optimizing hyperparameters...")
+        
+        # Amostra pequena para tuning rápido
+        X_tune, _, y_tune, _ = train_test_split(X_train, y_train, train_size=0.1, random_state=123)
+        
+        # Parâmetros específicos do LightGBM
+        param_dist = {
+            "n_estimators": [300, 500, 800],
+            "learning_rate": [0.01, 0.05, 0.1],
+            "num_leaves": [31, 50, 70],         # Controla complexidade da árvore
+            "max_depth": [-1, 10, 15, 20],      # -1 significa sem limite (controlado por num_leaves)
+            "subsample": [0.7, 0.8, 1.0],
+            "colsample_bytree": [0.7, 0.8, 1.0]
+        }
 
-    # Explicit data definition (recommended)
-    data_def = DataDefinition(
-        numerical_columns=X_train.select_dtypes(include="number").columns.tolist(),
-        categorical_columns=X_train.select_dtypes(exclude="number").columns.tolist()
-    )
+        lgbm = LGBMRegressor(n_jobs=-1, random_state=123, verbose=-1)
 
-    # Build Evidently dataset
-    train_dataset = Dataset.from_pandas(X_train, data_definition=data_def)
-
-    # Create report
-    report = Report(metrics=[DataDriftPreset()])
-
-    # Run report (returns a Snapshot object)
-    snapshot = report.run(
-        reference_data=train_dataset,
-        current_data=train_dataset
-    )
-
-    # Save JSON
-    drift_report_path = "drift_baseline.json"
-    snapshot.save_json(drift_report_path)
-    # Log to MLflow
-    mlflow.log_artifact(drift_report_path, artifact_path="drift_info")
-
-    # -------------------------------------------------------------
-
-    preds = model.predict(X_test)
-
-    mae = mean_absolute_error(y_test, preds)
-    mse = mean_squared_error(y_test, preds)
-    r2 = r2_score(y_test, preds)
-
-    mlflow.log_metric("MAE", mae)
-    mlflow.log_metric("MSE", mse)
-    mlflow.log_metric("R2", r2)
-
-    print(f"Metrics:\n MAE={mae:.3f}, MSE={mse:.3f}, R2={r2:.3f}")
-
-    # Guardar a tabela de predições
-    pred_path = "predictions_sample.csv"
-    prediction_table(model, X_test, y_test, n=50, sort_by_error=True, save_csv=pred_path)
-
-    print(f"Saving predictions to mlflow {pred_path}...")
-    mlflow.log_artifact(pred_path)
-
-    # Infere model signature
-    signature = mlflow.models.infer_signature(
-                X_train, model.predict(X_train)
-            )
-    # Registrar modelo no MLflow Model Registry
-    print("Registering model in MLflow Model Registry...")
-
-    mlflow.sklearn.log_model(
-        model, 
-        name="model",
-        signature=signature,
-        input_example=X_train[:5]
+        search = RandomizedSearchCV(
+            lgbm,
+            param_distributions=param_dist,
+            n_iter=10, 
+            cv=3,
+            scoring='neg_mean_absolute_error',
+            verbose=1,
+            n_jobs=-1
         )
-    
-    model_uri = f"runs:/{run.info.run_id}/model"
-    try:
-        registered_model = mlflow.register_model(model_uri, MODEL_NAME)
-        print(f"Modelo registrado: {registered_model.name} (versão {registered_model.version})")
+        
+        search.fit(X_tune, y_tune, categorical_feature=categorical_features)
+        
+        best_params = search.best_params_
+        print(f"Best Parameters: {best_params}")
+        mlflow.log_params(best_params)
 
-        client = MlflowClient()
-        # promote model to 'staging' and commit sha aliases
-        client.set_registered_model_alias(
-            name=MODEL_NAME,
-            alias="staging",
-            version=registered_model.version
+        print("Training LightGMB...")
+        
+        model = LGBMRegressor(
+            n_jobs=-1,
+            random_state=123,
+            verbose=-1,
+            **best_params
         )
-        client.set_registered_model_alias(
-            name=MODEL_NAME,
-            alias=COMMIT_SHA,
-            version=registered_model.version,
+        
+        model.fit(X_train, y_train, categorical_feature=categorical_features)
+
+        print("4. A avaliar...")
+        preds = model.predict(X_test)
+        mae = mean_absolute_error(y_test, preds)
+        mse = mean_squared_error(y_test, preds)
+        r2 = r2_score(y_test, preds)
+
+        mlflow.log_metric("MAE", mae)
+        mlflow.log_metric("MSE", mse)
+        mlflow.log_metric("R2", r2)
+
+        print(f"Metrics:\n MAE={mae:.3f}, MSE={mse:.3f}, R2={r2:.3f}")
+
+        pred_path = "predictions_sample.csv"
+        prediction_table(model, X_test, y_test, n=50, sort_by_error=True, save_csv=pred_path)
+        mlflow.log_artifact(pred_path)
+
+        signature = mlflow.models.infer_signature(X_train, model.predict(X_train))
+        print("Registering model in MLflow Model Registry...")
+        
+        mlflow.sklearn.log_model(
+            model, 
+            name="model",
+            signature=signature,
+            input_example=X_train.iloc[:5]
         )
+        
+        model_uri = f"runs:/{run.info.run_id}/model"
+        
+        try:
+            registered_model = mlflow.register_model(model_uri, MODEL_NAME)
+            client = MlflowClient()
+            client.set_registered_model_alias(MODEL_NAME, "staging", registered_model.version)
+            client.set_registered_model_alias(MODEL_NAME, COMMIT_SHA, registered_model.version)
+            print(f"Model {registered_model.version} promoted to staging")
+        except Exception as e:
+            print(f"ERROR: Failed to register/promote model: {e}")
+            print(f"Model URI: {model_uri}")
+            print(f"MLflow tracking URI: {os.getenv('MLFLOW_TRACKING_URI')}")
+            raise
 
-        print(f"Model version {registered_model.version} promoted to staging")
-
-    except Exception as e:
-        print(f"ERROR: Failed to register/promote model: {e}")
-        print(f"Model URI: {model_uri}")
-        print(f"MLflow tracking URI: {os.getenv('MLFLOW_TRACKING_URI')}")
-        raise
-
-print("\nExperimento finalizado com sucesso!")
+    print("Training Concluded.")
