@@ -49,7 +49,7 @@ echo "Starting new serving-app container..."
 
 docker run -d \
   --name serving-app \
-  -p 8080:8080 \
+  -p 9001:8080 \
   -e MLFLOW_TRACKING_URI="$MLFLOW_TRACKING_URI" \
   -e MLFLOW_MODEL_NAME="$MLFLOW_MODEL_NAME" \
   -e MODEL_ALIAS="$ALIAS" \
