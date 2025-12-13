@@ -26,17 +26,13 @@ def log_inference(df: pd.DataFrame, predictions):
         with open(LOG_FILE, "a") as f:
             f.write(json.dumps(row) + "\n")
 
-    # Corrigir permissões
-    os.chmod(LOG_FILE, 0o664)  # rw-rw-r--
 
-    try:
-        # Forçar dono admin (usuário dentro do container)
-        uid = pwd.getpwnam("admin").pw_uid
-        gid = grp.getgrnam("admin").gr_gid
-        os.chown(LOG_FILE, uid, gid)
-    except KeyError:
-        # Se usuário "admin" não existir, apenas ignora
-        pass
+    os.chmod(LOG_FILE, 0o664)
+
+    uid = pwd.getpwnam("admin").pw_uid
+    gid = grp.getgrnam("admin").gr_gid
+    os.chown(LOG_FILE, uid, gid)
+
 
 # Allow all hosts to connect to Mlflow
 os.environ["MLFLOW_ALLOWED_HOSTS"] = "*"
