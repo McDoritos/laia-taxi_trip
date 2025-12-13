@@ -27,11 +27,7 @@ def log_inference(df: pd.DataFrame, predictions):
             f.write(json.dumps(row) + "\n")
 
 
-    os.chmod(LOG_FILE, 0o664)
-
-    uid = pwd.getpwnam("admin").pw_uid
-    gid = grp.getgrnam("admin").gr_gid
-    os.chown(LOG_FILE, uid, gid)
+    os.chmod(LOG_FILE, 0o666)
 
 
 # Allow all hosts to connect to Mlflow
