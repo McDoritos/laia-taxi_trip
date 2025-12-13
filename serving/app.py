@@ -5,6 +5,7 @@ import numpy as np
 import os
 import json
 
+
 LOG_FILE = "logs/inference_logs.jsonl"
 
 def log_inference(df: pd.DataFrame, predictions):
@@ -18,12 +19,21 @@ def log_inference(df: pd.DataFrame, predictions):
     """
     os.makedirs(os.path.dirname(LOG_FILE), exist_ok=True)
 
+    # UID/GID passados pelo workflow
+    admin_uid = int(os.getenv("ADMIN_UID", os.getuid()))
+    admin_gid = int(os.getenv("ADMIN_GID", os.getgid()))
+
+    # Ajusta dono do diretório (se necessário)
+    os.chown(os.path.dirname(LOG_FILE), admin_uid, admin_gid)
+
     records = df.to_dict(orient="records")
     with open(LOG_FILE, "a", encoding="utf-8") as f:
         for row, pred in zip(records, predictions.tolist()):
             row['_prediction'] = pred
             f.write(json.dumps(row) + "\n")
 
+    # Ajusta dono e permissões do ficheiro
+    os.chown(LOG_FILE, admin_uid, admin_gid)
     os.chmod(LOG_FILE, 0o666)
 
 

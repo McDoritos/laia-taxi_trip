@@ -107,18 +107,19 @@ jobs:
           MLFLOW_TRACKING_URI: ${{ env.MLFLOW_TRACKING_URI }}
           MODEL_ALIAS: ${{ github.sha }}
           MLFLOW_MODEL_NAME: ${{ env.MLFLOW_MODEL_NAME }}
+          ADMIN_UID: 1001   
+          ADMIN_GID: 1001
         run: |
           docker run -d \
             --name serving-app \
             -p 8080:8080 \
             -v $(pwd)/logs:/app/logs \
-            -v $(pwd)/.cache:/app/.cache \
             -e LOG_DIR=/app/logs \
-            -e XDG_CACHE_HOME=/app/.cache \
             -e MLFLOW_TRACKING_URI \
             -e MODEL_ALIAS \
             -e MLFLOW_MODEL_NAME \
-            -u $(id -u):$(id -g) \
+            -e ADMIN_UID \
+            -e ADMIN_GID \
             ${{ env.REGISTRY }}/mcdoritos/laia-taxi_trip/serving:${{ github.sha }}
 
           sleep 10
