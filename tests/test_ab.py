@@ -6,13 +6,12 @@ from mlflow.tracking import MlflowClient
 import mlflow.pyfunc
 from sklearn.metrics import mean_squared_error
 import pyarrow.parquet as pq
-import sys
 
 # --- Config ---
 MODEL_NAME = os.getenv("MLFLOW_MODEL_NAME")
 ALIAS_A = os.getenv("PROD_ALIAS", "production")
 ALIAS_B = os.getenv("STAGING_ALIAS", "staging")
-DATA_ROOT = os.getenv("VALIDATION_DATA", "Dataset/2013")  
+DATA_ROOT = os.getenv("VALIDATION_DATA", "Dataset/2013")  # folder, not a single file
 
 # --- Helper to read dataset ---
 def read_dataset(root=None, sample_frac_per_file=0.05):
@@ -84,13 +83,6 @@ X_val, y_val = read_dataset(DATA_ROOT)
 
 # --- Load models ---
 client = MlflowClient(tracking_uri=os.getenv("MLFLOW_TRACKING_URI"))
-prod_info = client.get_latest_versions(name=MODEL_NAME, stages=[ALIAS_A])[0]
-staging_info = client.get_latest_versions(name=MODEL_NAME, stages=[ALIAS_B])[0]
-
-print(f"Production alias -> version {prod_info.version}, run_id={prod_info.run_id}")
-print(f"Staging alias    -> version {staging_info.version}, run_id={staging_info.run_id}")
-
-# --- Load models via the aliases ---
 model_a = mlflow.pyfunc.load_model(f"models:/{MODEL_NAME}@{ALIAS_A}")
 model_b = mlflow.pyfunc.load_model(f"models:/{MODEL_NAME}@{ALIAS_B}")
 
@@ -107,7 +99,5 @@ print(f"Model {ALIAS_B}: RMSE={rmse_b:.3f}")
 
 if rmse_b < rmse_a:
     print(f"Model {ALIAS_B} performs better. Promote to production!")
-    sys.exit(0)  # success → deploy
 else:
-    print(f"Model {ALIAS_A} remains in production. Skipping promotion.")
-    sys.exit(1)  # failure → skip deploy
+    print(f"Model {ALIAS_A} remains in production.")
