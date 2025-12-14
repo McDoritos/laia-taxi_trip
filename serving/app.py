@@ -15,7 +15,6 @@ def log_inference(df: pd.DataFrame, predictions):
             row["_prediction"] = pred
             f.write(json.dumps(row) + "\n")
 
-
 os.environ["MLFLOW_ALLOWED_HOSTS"] = "*"
 mlflow.set_tracking_uri("http://the-traffickers-internal.dei.uc.pt:5050")
 app = Flask(__name__)

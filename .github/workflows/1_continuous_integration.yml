@@ -60,7 +60,7 @@ jobs:
         run: |
           set -e  # falha se algum comando der erro, exceto o 'grep || true'
           git fetch origin main
-          CHANGED_FILES=$(git diff --name-only origin/main ${{ github.sha }} | grep '^serving/' || true)
+          CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD | grep '^serving/' || true)
           echo "Changed files: $CHANGED_FILES"
           if [ -z "$CHANGED_FILES" ]; then
             echo "API_CHANGED=false" >> $GITHUB_ENV
