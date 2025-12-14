@@ -1,149 +1,94 @@
-"""Unit tests for training script functionality."""
+"""Unit tests for taxi trip training pipeline."""
+
 import pytest
 import numpy as np
-from sklearn.datasets import load_iris
-from sklearn.linear_model import LogisticRegression
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import accuracy_score
+import pandas as pd
+from sklearn.metrics import mean_absolute_error
+from lightgbm import LGBMRegressor
+from sklearn.ensemble import RandomForestRegressor
+
+from your_module import read_dataset  # <-- replace with your actual import path
 
 
-def test_iris_dataset_loading():
-    """Test that iris dataset can be loaded."""
-    X, y = load_iris(return_X_y=True)
-    
-    assert X.shape[0] == 150  # Iris has 150 samples
-    assert X.shape[1] == 4    # 4 features
-    assert len(y) == 150
-    assert set(y) == {0, 1, 2}  # 3 classes
+@pytest.fixture(scope="module")
+def small_dataset():
+    """Load a small sample dataset for testing."""
+    X, y = read_dataset(sample_frac_per_file=0.01)
+    return X, y
 
 
-def test_train_test_split():
-    """Test that train/test split works correctly."""
-    X, y = load_iris(return_X_y=True)
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.3, random_state=42
-    )
-    
-    assert len(X_train) == 105  # 70% of 150
-    assert len(X_test) == 45    # 30% of 150
-    assert len(y_train) == 105
-    assert len(y_test) == 45
+def test_dataset_columns(small_dataset):
+    """Test that dataset has all required features."""
+    X, y = small_dataset
+    expected_cols = [
+        "trip_distance",
+        "passenger_count",
+        "pickup_hour",
+        "pickup_dayofweek",
+        "pickup_month",
+        "is_weekend",
+        "is_rush_hour",
+        "PULocationID",
+        "DOLocationID",
+    ]
+    for col in expected_cols:
+        assert col in X.columns, f"Missing feature: {col}"
+    assert len(y) == len(X), "Target length mismatch"
 
 
-def test_model_training_c_0_1():
-    """Test model training with C=0.1."""
-    X, y = load_iris(return_X_y=True)
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.3, random_state=42
-    )
-    
-    model = LogisticRegression(max_iter=200, C=0.1)
-    model.fit(X_train, y_train)
-    preds = model.predict(X_test)
-    acc = accuracy_score(y_test, preds)
-    
-    assert acc > 0.8  # Should achieve reasonable accuracy
-    assert len(preds) == len(y_test)
+def test_feature_sanity(small_dataset):
+    """Test that derived features have valid ranges."""
+    X, _ = small_dataset
+    assert X["pickup_hour"].between(0, 23).all()
+    assert X["pickup_dayofweek"].between(0, 6).all()
+    assert set(X["is_weekend"].unique()).issubset({0, 1})
+    assert set(X["is_rush_hour"].unique()).issubset({0, 1})
+    assert X["trip_distance"].min() >= 0
+    assert X["passenger_count"].min() >= 0
 
 
-def test_model_training_c_1_0():
-    """Test model training with C=1.0."""
-    X, y = load_iris(return_X_y=True)
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.3, random_state=42
-    )
-    
-    model = LogisticRegression(max_iter=200, C=1.0)
-    model.fit(X_train, y_train)
-    preds = model.predict(X_test)
-    acc = accuracy_score(y_test, preds)
-    
-    assert acc > 0.8
-    assert len(preds) == len(y_test)
+def test_lgbm_training_smoke(small_dataset):
+    """Smoke test LightGBM training."""
+    X, y = small_dataset
+    model = LGBMRegressor(n_estimators=10, random_state=42)
+    model.fit(X, y)
+    preds = model.predict(X)
+    # Predictions should match input length and be positive
+    assert preds.shape[0] == X.shape[0]
+    assert np.all(preds > 0)
+    # Check that MAE can be computed
+    mae = mean_absolute_error(y, preds)
+    assert isinstance(mae, float)
 
 
-def test_model_training_c_10_0():
-    """Test model training with C=10.0."""
-    X, y = load_iris(return_X_y=True)
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.3, random_state=42
-    )
-    
-    model = LogisticRegression(max_iter=200, C=10.0)
-    model.fit(X_train, y_train)
-    preds = model.predict(X_test)
-    acc = accuracy_score(y_test, preds)
-    
-    assert acc > 0.8
-    assert len(preds) == len(y_test)
+def test_random_forest_training_smoke(small_dataset):
+    """Smoke test RandomForest training."""
+    X, y = small_dataset
+    model = RandomForestRegressor(n_estimators=10, max_depth=5, random_state=42)
+    model.fit(X, y)
+    preds = model.predict(X)
+    assert preds.shape[0] == X.shape[0]
+    assert np.all(preds > 0)
+    mae = mean_absolute_error(y, preds)
+    assert isinstance(mae, float)
 
 
-def test_model_prediction_shape():
-    """Test that model predictions have correct shape."""
-    X, y = load_iris(return_X_y=True)
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.3, random_state=42
-    )
-    
-    model = LogisticRegression(max_iter=200, C=1.0)
-    model.fit(X_train, y_train)
-    preds = model.predict(X_test)
-    
-    assert preds.shape == y_test.shape
-    assert all(p in [0, 1, 2] for p in preds)  # Valid class labels
+def test_ab_model_selection(small_dataset):
+    """Simulate A/B test logic between two models."""
+    X, y = small_dataset
+    model_a = LGBMRegressor(n_estimators=5, random_state=1)
+    model_b = LGBMRegressor(n_estimators=5, random_state=2)
+    model_a.fit(X, y)
+    model_b.fit(X, y)
 
+    preds_a = model_a.predict(X)
+    preds_b = model_b.predict(X)
+    mae_a = mean_absolute_error(y, preds_a)
+    mae_b = mean_absolute_error(y, preds_b)
 
-def test_model_convergence():
-    """Test that model converges during training."""
-    X, y = load_iris(return_X_y=True)
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.3, random_state=42
-    )
-    
-    model = LogisticRegression(max_iter=200, C=1.0)
-    model.fit(X_train, y_train)
-    
-    # Check that model has been fitted (has coef_ attribute)
-    assert hasattr(model, 'coef_')
-    assert model.coef_.shape[0] == 3  # 3 classes
-    assert model.coef_.shape[1] == 4  # 4 features
-
-
-def test_best_model_selection():
-    """Test logic for selecting best model based on accuracy."""
-    X, y = load_iris(return_X_y=True)
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.3, random_state=42
-    )
-    
-    results = []
-    for C in [0.1, 1.0, 10.0]:
-        model = LogisticRegression(max_iter=200, C=C)
-        model.fit(X_train, y_train)
-        preds = model.predict(X_test)
-        acc = accuracy_score(y_test, preds)
-        results.append({'C': C, 'accuracy': acc, 'model': model})
-    
-    # Find best model
-    best_result = max(results, key=lambda x: x['accuracy'])
-    
-    assert best_result['accuracy'] > 0.8
-    assert best_result['C'] in [0.1, 1.0, 10.0]
-    assert isinstance(best_result['model'], LogisticRegression)
-
-
-def test_feature_importance():
-    """Test that trained model has reasonable feature weights."""
-    X, y = load_iris(return_X_y=True)
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.3, random_state=42
-    )
-    
-    model = LogisticRegression(max_iter=200, C=1.0)
-    model.fit(X_train, y_train)
-    
-    # Check coefficients exist and are not all zero
-    assert hasattr(model, 'coef_')
-    assert not np.all(model.coef_ == 0)
-    assert model.coef_.shape == (3, 4)  # 3 classes, 4 features
-
+    # Ensure metrics are valid numbers
+    assert isinstance(mae_a, float)
+    assert isinstance(mae_b, float)
+    # One model should be better (or tie)
+    assert mae_a >= 0
+    assert mae_b >= 0
