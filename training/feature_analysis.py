@@ -210,7 +210,7 @@ mean_duration = df.groupby("traffic_period")["duration_min"].mean().rename(index
 
 plt.figure(figsize=(8, 5))
 mean_duration.plot(kind="bar", color=["skyblue", "orange", "green"])
-plt.ylim(0, 60) 
+plt.ylim(0, 20) 
 plt.ylabel("Mean Trip Duration (min)")
 plt.xlabel("Rush Hour Category")
 plt.title("Average Trip Duration by Traffic Period")

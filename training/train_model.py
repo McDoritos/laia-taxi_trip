@@ -61,6 +61,19 @@ def haversine_vectorized(lat1, lon1, lat2, lon2):
     c = 2 * np.arcsin(np.sqrt(a))
     return R * c
 
+def traffic_period(hour: int) -> int:
+    """
+    0 = low traffic (short trips)
+    1 = medium traffic
+    2 = high traffic (long trips)
+    """
+    if 5 <= hour <= 7:
+        return 0  # low
+    elif (9 <= hour <= 15) or (17 <= hour <= 18):
+        return 2  # high
+    else:
+        return 1  # medium
+
 
 def readDataset(root=None, sample_frac_per_file=0.05):
     """
@@ -114,6 +127,7 @@ def readDataset(root=None, sample_frac_per_file=0.05):
     df["pickup_month"] = df[pickup_col].dt.month
     df["is_weekend"] = df["pickup_dayofweek"].isin([5, 6]).astype(int)
     df["is_rush_hour"] = df["pickup_hour"].isin([7, 8, 9, 16, 17, 18, 19]).astype(int)
+    df["traffic_period"] = df["pickup_hour"].apply(traffic_period).astype(np.int32)
 
     
     # 1. ID Columns -> Fill NaN with -1
@@ -124,7 +138,7 @@ def readDataset(root=None, sample_frac_per_file=0.05):
 
     # 2. Count/Integer Columns -> Fill NaN with 0
     int_cols = ["pickup_hour", "pickup_dayofweek", "pickup_month", 
-                "is_weekend", "is_rush_hour", "passenger_count"]
+                "is_weekend", "is_rush_hour", "passenger_count", "traffic_period"]
     for col in int_cols:
         df[col] = df[col].fillna(0).astype(np.int32)
 
@@ -142,6 +156,7 @@ def readDataset(root=None, sample_frac_per_file=0.05):
         "pickup_month",
         "is_weekend",
         "is_rush_hour",
+        "traffic_period",
         "PULocationID",
         "DOLocationID",
     ]
@@ -181,6 +196,8 @@ categorical_features = [
         "is_rush_hour",
         "PULocationID",
         "DOLocationID",
+        "VendorID",
+        "traffic_period"
     ]
     if c in X_train.columns
 ]

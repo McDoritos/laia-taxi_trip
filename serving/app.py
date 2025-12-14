@@ -19,6 +19,19 @@ os.environ["MLFLOW_ALLOWED_HOSTS"] = "*"
 mlflow.set_tracking_uri("http://the-traffickers-internal.dei.uc.pt:5050")
 app = Flask(__name__)
 
+def traffic_period(hour: int) -> int:
+    """
+    0 = low traffic (short trips)
+    1 = medium traffic
+    2 = high traffic (long trips)
+    """
+    if 5 <= hour <= 7:
+        return 0  # low
+    elif (9 <= hour <= 15) or (17 <= hour <= 18):
+        return 2  # high
+    else:
+        return 1  # medium
+
 MODEL_NAME = os.getenv('MLFLOW_MODEL_NAME')
 MODEL_ALIAS = os.getenv("MODEL_ALIAS")
 
@@ -70,13 +83,14 @@ def predict():
     df["pickup_month"] = df["tpep_pickup_datetime"].dt.month
     df["is_weekend"] = df["pickup_dayofweek"].isin([5,6]).astype(int)
     df["is_rush_hour"] = df["pickup_hour"].isin([7,8,9,16,17,18,19]).astype(int)
+    df["traffic_period"] = df["pickup_hour"].apply(traffic_period).astype(np.int32)
 
     df["PULocationID"] = pd.to_numeric(df["PULocationID"], errors='coerce').fillna(-1).astype(np.int32)
     df["DOLocationID"] = pd.to_numeric(df["DOLocationID"], errors='coerce').fillna(-1).astype(np.int32)
 
     # Cast numeric types
     int_cols = ["pickup_hour", "pickup_dayofweek", "pickup_month",
-                "is_weekend", "is_rush_hour", "passenger_count"]
+                "is_weekend", "is_rush_hour", "passenger_count", "traffic_period"]
     float_cols = ["trip_distance"]
     id_cols = ["PULocationID", "DOLocationID", "VendorID"]
     for col in id_cols:
