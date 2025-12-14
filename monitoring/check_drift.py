@@ -15,109 +15,130 @@ MLFLOW_MODEL_NAME = os.getenv("MLFLOW_MODEL_NAME")
 GITHUB_REPO = os.getenv("GITHUB_REPOSITORY")
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 LOG_FILE = "logs/inference_logs.jsonl"
+DRIFT_REPORT_FILE = "drift_report.html"
+REPORT_FILE = "drift_report.html"
 
 def check_drift():
-    print("1. Loading Current Data (Inference Logs)...")
+    # 1. LOAD CURRENT DATA
+    print("1. Loading Current Data...")
     if not os.path.exists(LOG_FILE):
-        print(f"No log file found at {LOG_FILE}. Skipping drift check.")
-        return
+        print(f"File {LOG_FILE} not found.")
+        sys.exit(0) # Exit gracefully if no logs
 
     try:
         current_data = pd.read_json(LOG_FILE, lines=True)
-    except ValueError:
-        print("Log file format error or empty. Skipping.")
-        return
+    except ValueError as e:
+        print(f"Error reading log file: {e}")
+        sys.exit(1)
 
-    if current_data.empty:
-        print("Log file is empty. Skipping.")
-        return
-
-    print("2. Loading Reference Data (Training Set)...")
+    # 2. LOAD REFERENCE DATA
+    print("2. Loading Reference Data...")
     mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
     client = mlflow.MlflowClient()
     
     try:
-        prod_model = client.get_model_version_by_alias(MLFLOW_MODEL_NAME, "production")
-        run_id = prod_model.run_id
-        print(f"Comparing against Production Model Version: {prod_model.version} (Run ID: {run_id})")
+        # Fetch the production model version
+        versions = client.get_latest_versions(MLFLOW_MODEL_NAME, stages=["Production"])
+        # Or use alias if preferred:
+        # version_info = client.get_model_version_by_alias(MLFLOW_MODEL_NAME, "production")
+        
+        if not versions:
+            print("No production model found.")
+            sys.exit(1)
+            
+        run_id = versions[0].run_id
+        print(f"Reference Run ID: {run_id}")
         
         local_ref_path = client.download_artifacts(run_id, "drift_info/reference.parquet", dst_path=".")
-        
-        print(f"Artifact downloaded to: {local_ref_path}")
         reference_data = pd.read_parquet(local_ref_path)
-        
     except Exception as e:
         print(f"Failed to load reference data: {e}")
-        return
-
-    # Align columns
-    common_cols = list(set(reference_data.columns) & set(current_data.columns))
-    if not common_cols:
-        print("Error: No common columns found.")
         sys.exit(1)
 
+    # 3. ALIGN COLUMNS (CRITICAL STEP)
+    # We only want to compare features that exist in both
+    common_cols = list(set(reference_data.columns) & set(current_data.columns))
+    
+    # Filter out non-feature columns if they leaked in (like 'prediction' or IDs if not needed)
+    exclude_cols = ["_prediction", "tpep_pickup_datetime"] 
+    common_cols = [c for c in common_cols if c not in exclude_cols]
+
+    if len(common_cols) == 0:
+        print("ERROR: No overlapping columns between reference and current data.")
+        print(f"Reference cols: {reference_data.columns.tolist()}")
+        print(f"Current cols: {current_data.columns.tolist()}")
+        sys.exit(1)
+
+    print(f"Comparing columns: {common_cols}")
     reference_data = reference_data[common_cols]
     current_data = current_data[common_cols]
 
-    print(f"3. Running Drift Detection on {len(common_cols)} features...")
-    
-    # --- FIXED: Use Snapshot API ---
+    # 4. RUN DRIFT (Same as before)
+    print("4. Running Drift Report...")
     report = Report(metrics=[DataDriftPreset()])
-    
-    # run() returns a Snapshot object
     snapshot = report.run(reference_data=reference_data, current_data=current_data)
     
-    # Save reports using the snapshot object
-    snapshot.save_html("drift_report.html")
-    snapshot.save_json("drift_report.json")
-    print("Drift reports saved (html/json).")
-
-    # Get the dictionary from the snapshot for logic checks
-    results = snapshot.dict() 
-
+    # Save locally first (required for upload)
+    snapshot.save_html(REPORT_FILE)
+    
+    # Check for drift result (Logic from your original script)
+    results = snapshot.as_dict() if hasattr(snapshot, "as_dict") else snapshot.dict()
     drift_detected = False
     
-    # Parse metrics to find dataset_drift
-    # Note: 'metric_types.py' uses 'value' to store results, not 'result'
-    for metric in results.get('metrics', []):
-        # We look for the 'DatasetDriftMetric' or similar output structure
-        val = metric.get('value', {})
-        
-        # Check if 'dataset_drift' is in the value dict
+    # Parse metric results
+    metrics_list = results.get('metrics', [])
+    for metric in metrics_list:
+        val = metric.get('result', {}) or metric.get('value', {})
         if isinstance(val, dict) and 'dataset_drift' in val:
             drift_detected = val['dataset_drift']
             break
-            
+
+    # ==========================================
+    # 5. UPLOAD TO MLFLOW (NEW STEP)
+    # ==========================================
+    print("5. Logging to MLflow...")
+    mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
+    
+    # Use a specific experiment for monitoring so it doesn't mix with training runs
+    mlflow.set_experiment("Weekly_Data_Drift_Checks")
+    
+    with mlflow.start_run(run_name="daily_check"):
+        # Log the HTML report so you can download/view it in UI
+        mlflow.log_artifact(REPORT_FILE)
+        
+        # Log the boolean result (0 or 1) so you can plot it over time
+        mlflow.log_metric("drift_detected", int(drift_detected))
+        
+        # Optional: Log the share of drifting features
+        # mlflow.log_metric("drift_share", ...) 
+
+    print("Report uploaded to MLflow.")
+
+    # 6. TRIGGER RETRAINING (Same as before)
     if drift_detected:
         print("!!! DATA DRIFT DETECTED !!!")
-
-        if os.environ.get("DRY_RUN") == "true":
-            print(">>> DRY RUN: Retraining triggers are disabled.")
-            sys.exit(0) 
-        
-        print(f"Triggering retraining on {GITHUB_REPO}...")
-        workflow_filename = "2_continuous_delivery.yml"
-        
-        if not GITHUB_REPO or not GITHUB_TOKEN:
-            print("Error: GITHUB_REPOSITORY or GITHUB_TOKEN not set.")
-            sys.exit(1)
-
-        url = f"https://api.github.com/repos/{GITHUB_REPO}/actions/workflows/{workflow_filename}/dispatches"
-        headers = {
-            "Authorization": f"Bearer {GITHUB_TOKEN}",
-            "Accept": "application/vnd.github.v3+json"
-        }
-        data = {"ref": "main"}
-
-        response = requests.post(url, headers=headers, json=data)
-        
-        if response.status_code == 204:
-            print("Successfully triggered retraining workflow.")
-        else:
-            print(f"Failed to trigger retraining: {response.status_code} - {response.text}")
-            sys.exit(1)
+        trigger_retraining()
     else:
-        print("No drift detected. System stable.")
+        print("System stable.")
+
+def trigger_retraining():
+    if os.environ.get("DRY_RUN") == "true":
+        print("DRY RUN: Skipping Github Action Trigger.")
+        return
+
+    print("Triggering retraining workflow...")
+    url = f"https://api.github.com/repos/{GITHUB_REPO}/actions/workflows/2_continuous_delivery.yml/dispatches"
+    headers = {
+        "Authorization": f"Bearer {GITHUB_TOKEN}",
+        "Accept": "application/vnd.github.v3+json"
+    }
+    # dispatch event requires 'ref'
+    resp = requests.post(url, headers=headers, json={"ref": "main"})
+    
+    if resp.status_code == 204:
+        print("Workflow triggered successfully.")
+    else:
+        print(f"Failed to trigger workflow: {resp.text}")
 
 if __name__ == "__main__":
     check_drift()
