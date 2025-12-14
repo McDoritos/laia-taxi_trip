@@ -26,6 +26,23 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Check if API changed
+        id: api_changed
+        shell: bash
+        run: |
+          git fetch origin main
+          CHANGED=$(git diff --name-only HEAD~1 HEAD | grep '^serving/' || true)
+          echo "Changed files: $CHANGED"
+          if [ -n "$CHANGED" ]; then
+            echo "API_CHANGED=true" >> $GITHUB_ENV
+            echo "SERVING_TAG=${{ github.sha }}" >> $GITHUB_ENV
+            echo "API changes detected"
+          else
+            echo "API_CHANGED=false" >> $GITHUB_ENV
+            echo "SERVING_TAG=production" >> $GITHUB_ENV
+            echo "No API changes detected"
+          fi
+
       # Here we are just loging in to GHCR and pulling the serving image with production tag and running it
       # In a real setup the deployment can be made in several ways, depending on the automation,
       # purpose, and infra. Some examples:
@@ -109,6 +126,7 @@ jobs:
         run: uv run python model-promotion/promote_model.py
 
       - name: Deploy to Production
+        if: env.API_CHANGED == 'true'
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.SSH_HOST }}

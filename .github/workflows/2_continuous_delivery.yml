@@ -34,9 +34,11 @@ jobs:
           if [ -n "$CHANGED" ]; then
             echo "API_CHANGED=true" >> $GITHUB_ENV
             echo "SERVING_TAG=${{ github.sha }}" >> $GITHUB_ENV
+            echo "API changes detected"
           else
             echo "API_CHANGED=false" >> $GITHUB_ENV
             echo "SERVING_TAG=production" >> $GITHUB_ENV
+            echo "No API changes detected"
           fi
 
       # 1. Install DVC and SSH support

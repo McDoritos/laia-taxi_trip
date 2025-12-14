@@ -25,6 +25,24 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Check if API changed
+        id: api_changed
+        shell: bash
+        run: |
+          git fetch origin main
+          CHANGED=$(git diff --name-only HEAD~1 HEAD | grep '^serving/' || true)
+          echo "Changed files: $CHANGED"
+          if [ -n "$CHANGED" ]; then
+            echo "API_CHANGED=true" >> $GITHUB_ENV
+            echo "SERVING_TAG=${{ github.sha }}" >> $GITHUB_ENV
+            echo "API changes detected"
+          else
+            echo "API_CHANGED=false" >> $GITHUB_ENV
+            echo "SERVING_TAG=production" >> $GITHUB_ENV
+            echo "No API changes detected"
+          fi
+
       - uses: actions/setup-python@v5
         with: { python-version: "3.13" }
       - run: pip install uv
@@ -36,14 +54,17 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - run: docker pull ${{ env.REGISTRY }}/mcdoritos/laia-taxi_trip/serving:staging
+      - if: env.API_CHANGED == 'true'
+        run: docker pull ${{ env.REGISTRY }}/mcdoritos/laia-taxi_trip/serving:staging
 
       # Cleanup old serving container if it exists
       - name: Cleanup old serving container
+        if: env.API_CHANGED == 'true'
         run: |
           docker rm -f serving-app 2>/dev/null || true
 
       - name: Start serving container
+        if: env.API_CHANGED == 'true'
         env:
           MLFLOW_TRACKING_URI: ${{ env.MLFLOW_TRACKING_URI }}
           MLFLOW_TRACKING_USERNAME: ${{ secrets.MLFLOW_USERNAME }}
@@ -63,6 +84,7 @@ jobs:
 
       # Run E2E tests
       - name: Run Staging tests
+        if: env.API_CHANGED == 'true'
         env:
           FLASK_BASE_URL: http://localhost:9001
         run: uv run pytest tests/test_e2e.py -v
@@ -80,6 +102,7 @@ jobs:
 
       # Tag the serving image with production tag
       - name: Push production container tag
+        if: env.API_CHANGED == 'true'
         run: |
           docker tag ${{ env.REGISTRY }}/mcdoritos/laia-taxi_trip/serving:staging \
                      ${{ env.REGISTRY }}/mcdoritos/laia-taxi_trip/serving:production
