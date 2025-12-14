@@ -103,7 +103,7 @@ jobs:
           MLFLOW_MODEL_NAME: ${{ env.MLFLOW_MODEL_NAME }}
           PROD_ALIAS: production
           STAGING_ALIAS: staging
-          VALIDATION_DATA: Dataset/2013  # <-- folder, not single parquet file
+          VALIDATION_DATA: Dataset/2013
         run: uv run python tests/test_ab.py
         continue-on-error: true
 
@@ -127,6 +127,19 @@ jobs:
           TO_ALIAS: production
         run: uv run python model-promotion/promote_model.py
 
+      # 1. COPY the new script from GitHub Runner -> Your VM
+      - name: Update Deploy Script on Server
+        if: env.API_CHANGED == 'true'
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          source: "serving/deploy.sh" # File in your repo
+          target: "/home/admin/Desktop/Flask/" # Folder on your VM
+          strip_components: 1 # Removes 'serving/' prefix when copying
+
+      # 2. RUN the script (now it's the new one)
       - name: Deploy to Production
         if: env.API_CHANGED == 'true'
         uses: appleboy/ssh-action@v1.0.3
@@ -135,5 +148,5 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
           script: |
-            cd /home/admin/Desktop/Flask/serving
+            cd /home/admin/Desktop/Flask
             bash deploy.sh ${{ github.actor }} ${{ secrets.GITHUB_TOKEN }}
