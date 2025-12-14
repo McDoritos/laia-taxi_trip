@@ -24,6 +24,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Debug workflow outputs
+        run: |
+          echo "SERVING_TAG 
+          echo "API_CHANGED 
+
       # 1. Install DVC and SSH support
       - uses: actions/setup-python@v5
         with: { python-version: "3.13" }

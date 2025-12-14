@@ -35,6 +35,9 @@ jobs:
     # Passed tests, now build docker images for training and serving
     runs-on: self-hosted
     needs: test-unit
+    outputs:
+      SERVING_TAG: ${{ steps.set_serving_tag.outputs.SERVING_TAG }}
+      API_CHANGED: ${{ steps.check_api.outputs.API_CHANGED }}
     steps:
       - uses: actions/checkout@v4
         with:
