@@ -127,7 +127,7 @@ jobs:
           TO_ALIAS: production
         run: uv run python model-promotion/promote_model.py
 
-      # 1. COPY the new script from GitHub Runner -> Your VM
+      # 1. COPY the deploy script to the server
       - name: Update Deploy Script on Server
         if: env.API_CHANGED == 'true'
         uses: appleboy/scp-action@v0.1.7
@@ -136,10 +136,10 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
           source: "deploy/deploy.sh"
-          target: "/home/admin/Desktop/Flask/" # Folder on your VM
-          strip_components: 1 # Removes 'serving/' prefix when copying
+          target: "/home/admin/Desktop/Flask/"
+          strip_components: 1
 
-      # 2. RUN the script
+      # 2. RUN the script with Secrets Injected
       - name: Deploy to Production
         if: env.API_CHANGED == 'true'
         uses: appleboy/ssh-action@v1.0.3
@@ -147,6 +147,14 @@ jobs:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
+          envs: GITHUB_USERNAME,GITHUB_TOKEN,MLFLOW_TRACKING_URI,MLFLOW_MODEL_NAME
           script: |
             cd /home/admin/Desktop/Flask
-            bash deploy.sh ${{ github.actor }} ${{ secrets.GITHUB_TOKEN }}
+            # No arguments needed; variables are now in the environment
+            bash deploy.sh
+        env:
+          # Define the values to be sent
+          GITHUB_USERNAME: ${{ github.actor }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MLFLOW_TRACKING_URI: ${{ env.MLFLOW_TRACKING_URI }}
+          MLFLOW_MODEL_NAME: ${{ env.MLFLOW_MODEL_NAME }}

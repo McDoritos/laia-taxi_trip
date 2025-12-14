@@ -46,7 +46,7 @@ except Exception as e:
 
 @app.route("/model-info", methods=["GET"])
 def model_info():
-    """Return current model alias version + run ID hash"""
+    """Return current model alias version and run ID hash"""
     try:
         from mlflow.tracking import MlflowClient
         client = MlflowClient()
