@@ -7,6 +7,15 @@ import requests
 from evidently import Report
 from evidently.presets import DataDriftPreset 
 
+# Configuration
+MLFLOW_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI")
+MLFLOW_MODEL_NAME = os.getenv("MLFLOW_MODEL_NAME")
+GITHUB_REPO = os.getenv("GITHUB_REPOSITORY")
+GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
+LOG_FILE = "logs/inference_logs.jsonl"
+HTML_REPORT_FILE = "drift_report.html"
+JSON_REPORT_FILE = "drift_report.json"
+
 def check_drift():
     # 1. LOAD CURRENT DATA
     print("1. Loading Current Data...")
