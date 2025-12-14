@@ -62,27 +62,37 @@ def check_drift():
     report = Report(metrics=[DataDriftPreset()])
     snapshot = report.run(reference_data=reference_data, current_data=current_data)
     
-    # Save locally
     snapshot.save_html(HTML_REPORT_FILE)
     snapshot.save_json(JSON_REPORT_FILE)
 
     # 5. PARSE DETAILED RESULTS
-    # evidently's as_dict() returns a structure we can search
-    results = snapshot.as_dict()
+    # ✅ CORRECTED: Use .dict() based on your report.py file
+    results = snapshot.dict()
     
     drift_detected = False
     drift_share = 0.0
     drift_count = 0
     
-    # Locate the DatasetDriftMetric inside the report
+    
     metrics_list = results.get('metrics', [])
+    
+    found_drift_metric = False
+    
     for metric in metrics_list:
-        if metric['metric'] == 'DatasetDriftMetric':
-            result_val = metric.get('result', {})
-            drift_detected = result_val.get('dataset_drift', False)
-            drift_share = result_val.get('share_of_drifted_columns', 0.0)
-            drift_count = result_val.get('number_of_drifted_columns', 0)
+        res = metric.get('result', {})
+        
+        # Check if this metric has the drift flags we need
+        if isinstance(res, dict) and 'dataset_drift' in res:
+            drift_detected = res['dataset_drift']
+            drift_share = res.get('share_of_drifted_columns', 0.0)
+            drift_count = res.get('number_of_drifted_columns', 0)
+            found_drift_metric = True
             break
+            
+    if not found_drift_metric:
+        print("WARNING: Could not find 'dataset_drift' in report results.")
+        # Optional: Print keys to debug if it fails
+        # print([m.get('metric') for m in metrics_list])
 
     # 6. LOG TO MLFLOW
     print("6. Logging to MLflow...")
@@ -90,14 +100,12 @@ def check_drift():
     mlflow.set_experiment("Weekly_Data_Drift_Checks")
     
     with mlflow.start_run(run_name="daily_check"):
-        # Log Artifacts (Visuals & Raw Data)
         mlflow.log_artifact(HTML_REPORT_FILE)
         mlflow.log_artifact(JSON_REPORT_FILE)
         
-        # Log Metrics (Graphable Numbers)
         mlflow.log_metric("drift_detected", int(drift_detected))
-        mlflow.log_metric("drift_share", drift_share)  # e.g., 0.15 (15%)
-        mlflow.log_metric("drift_count", drift_count)  # e.g., 3 columns
+        mlflow.log_metric("drift_share", drift_share)
+        mlflow.log_metric("drift_count", drift_count)
         
         print(f"Drift Detected: {drift_detected}")
         print(f"Share of Drifted Cols: {drift_share}")
