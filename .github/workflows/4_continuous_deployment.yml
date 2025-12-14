@@ -139,7 +139,7 @@ jobs:
           target: "/home/admin/Desktop/Flask/" # Folder on your VM
           strip_components: 1 # Removes 'serving/' prefix when copying
 
-      # 2. RUN the script (now it's the new one)
+      # 2. RUN the script
       - name: Deploy to Production
         if: env.API_CHANGED == 'true'
         uses: appleboy/ssh-action@v1.0.3
