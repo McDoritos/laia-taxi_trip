@@ -8,6 +8,20 @@ import glob
 import pandas as pd
 import pyarrow.parquet as pq
 
+def traffic_period(hour: int) -> int:
+    """
+    0 = low traffic (short trips)
+    1 = medium traffic
+    2 = high traffic (long trips)
+    """
+    if 5 <= hour <= 7:
+        return 0  # low
+    elif (9 <= hour <= 15) or (17 <= hour <= 18):
+        return 2  # high
+    else:
+        return 1  # medium
+
+
 def read_taxi_data_for_analysis(
     root="../Dataset",
     years=("2011", "2012"),
@@ -59,6 +73,7 @@ def read_taxi_data_for_analysis(
     df["pickup_month"] = df[pickup_col].dt.month
     df["is_weekend"] = df["pickup_dayofweek"].isin([5, 6]).astype(int)
     df["is_rush_hour"] = df["pickup_hour"].isin([7, 8, 9, 16, 17, 18, 19]).astype(int)
+    df["traffic_period"] = df["pickup_hour"].apply(traffic_period).astype(np.int32)
 
     
     # 1. ID Columns -> Fill NaN with -1
@@ -91,6 +106,7 @@ feature_cols = [
         "pickup_month",
         "is_weekend",
         "is_rush_hour",
+        "traffic_period",
         "PULocationID",
         "DOLocationID",
     ]
@@ -146,6 +162,62 @@ plt.xlabel("Day of Week")
 plt.ylabel("Median Duration (min)")
 plt.tight_layout()
 plt.show()
+
+rush_stats = (
+    df.groupby("is_rush_hour")["duration_min"]
+    .median()
+)
+
+plt.figure(figsize=(5, 4))
+rush_stats.plot(kind="bar")
+plt.xticks([0, 1], ["Non-Rush Hour", "Rush Hour"], rotation=0)
+plt.ylabel("Median Duration (min)")
+plt.title("Median Trip Duration by Rush Hour")
+plt.tight_layout()
+plt.show()
+
+plt.figure(figsize=(6, 4))
+sns.boxplot(
+    x="is_rush_hour",
+    y="duration_min",
+    data=df
+)
+plt.ylim(0, 120)
+plt.xticks([0, 1], ["Non-Rush Hour", "Rush Hour"])
+plt.title("Trip Duration: Rush Hour vs Non-Rush Hour")
+plt.xlabel("")
+plt.ylabel("Duration (minutes)")
+plt.tight_layout()
+plt.show()
+
+hour_mean = df.groupby("pickup_hour")["duration_min"].mean()
+
+plt.figure(figsize=(10, 4))
+hour_mean.plot()
+plt.axvspan(5, 7, alpha=0.1, label="Low traffic")
+plt.axvspan(9, 15, alpha=0.1, color="red", label="High traffic")
+plt.axvspan(17, 18, alpha=0.1, color="red")
+plt.title("Average Trip Duration by Pickup Hour")
+plt.xlabel("Hour")
+plt.ylabel("Mean Duration (min)")
+plt.legend()
+plt.tight_layout()
+plt.show()
+
+plt.figure(figsize=(8, 5))
+sns.boxplot(
+    x="traffic_period",
+    y="duration_min",
+    data=df,
+    order=["low_duration", "medium_duration", "high_duration"]
+)
+plt.ylim(0, 120)
+plt.title("Trip Duration by Rush Hour Category")
+plt.xlabel("Rush Hour Category")
+plt.ylabel("Duration (min)")
+plt.tight_layout()
+plt.show()
+
 
 # ===============================
 # TARGET DISTRIBUTION
