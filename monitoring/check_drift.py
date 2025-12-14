@@ -37,22 +37,26 @@ def check_drift():
     client = mlflow.MlflowClient()
     
     try:
-        # Fetch the production model version
-        versions = client.get_latest_versions(MLFLOW_MODEL_NAME, stages=["Production"])
-        # Or use alias if preferred:
-        # version_info = client.get_model_version_by_alias(MLFLOW_MODEL_NAME, "production")
+        # --- Use Aliases instead of Stages ---
+        print(f"Fetching model '{MLFLOW_MODEL_NAME}' with alias 'production'...")
         
-        if not versions:
-            print("No production model found.")
-            sys.exit(1)
-            
-        run_id = versions[0].run_id
+        # Get the specific version tagged as 'production'
+        version_info = client.get_model_version_by_alias(
+            name=MLFLOW_MODEL_NAME, 
+            alias="production"
+        )
+        
+        run_id = version_info.run_id
         print(f"Reference Run ID: {run_id}")
         
+        # Download the reference dataset stored in that run
         local_ref_path = client.download_artifacts(run_id, "drift_info/reference.parquet", dst_path=".")
         reference_data = pd.read_parquet(local_ref_path)
+        
     except Exception as e:
         print(f"Failed to load reference data: {e}")
+        # Hint for debugging
+        print("Ensure you have promoted a model to 'production' alias in your deployment workflow.")
         sys.exit(1)
 
     # 3. ALIGN COLUMNS (CRITICAL STEP)
