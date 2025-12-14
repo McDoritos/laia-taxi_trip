@@ -14,7 +14,7 @@ ALIAS_B = os.getenv("STAGING_ALIAS", "staging")
 DATA_ROOT = os.getenv("VALIDATION_DATA", "Dataset/2013")  # folder, not a single file
 
 # --- Helper to read dataset ---
-def readDataset(root=None, sample_frac_per_file=0.05):
+def read_dataset(root=None, sample_frac_per_file=0.05):
     """
     Read parquet files and return X, y for training.
     ALIGNED with app.py /predict endpoint handling of NaNs and types.

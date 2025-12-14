@@ -204,17 +204,16 @@ plt.legend()
 plt.tight_layout()
 plt.show()
 
+period_map = {0: "low_duration", 1: "medium_duration", 2: "high_duration"}
+
+mean_duration = df.groupby("traffic_period")["duration_min"].mean().rename(index=period_map)
+
 plt.figure(figsize=(8, 5))
-sns.boxplot(
-    x="traffic_period",
-    y="duration_min",
-    data=df,
-    order=["low_duration", "medium_duration", "high_duration"]
-)
-plt.ylim(0, 120)
-plt.title("Trip Duration by Rush Hour Category")
+mean_duration.plot(kind="bar", color=["skyblue", "orange", "green"])
+plt.ylim(0, 60) 
+plt.ylabel("Mean Trip Duration (min)")
 plt.xlabel("Rush Hour Category")
-plt.ylabel("Duration (min)")
+plt.title("Average Trip Duration by Traffic Period")
 plt.tight_layout()
 plt.show()
 
