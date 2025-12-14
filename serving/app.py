@@ -109,6 +109,7 @@ def predict():
         "pickup_hour", "pickup_dayofweek", "pickup_month",
         "is_weekend", "is_rush_hour", "traffic_period", "PULocationID", "DOLocationID"
     ]
+    
     X = df[feature_cols]
 
     predictions = model.predict(X)
