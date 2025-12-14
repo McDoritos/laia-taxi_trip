@@ -113,6 +113,40 @@ plt.title("Feature Correlation Matrix")
 plt.tight_layout()
 plt.show()
 
+month_stats = (
+    df.groupby("pickup_month")["duration_min"]
+    .median()
+)
+
+plt.figure(figsize=(10, 4))
+sns.barplot(
+    x=month_stats.index,
+    y=month_stats.values
+)
+plt.title("Median Trip Duration by Month")
+plt.xlabel("Month")
+plt.ylabel("Median Duration (min)")
+plt.tight_layout()
+plt.show()
+
+dow_labels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+
+dow_stats = (
+    df.groupby("pickup_dayofweek")["duration_min"]
+    .median()
+)
+
+plt.figure(figsize=(10, 4))
+sns.barplot(
+    x=[dow_labels[i] for i in dow_stats.index],
+    y=dow_stats.values
+)
+plt.title("Median Trip Duration by Day of Week")
+plt.xlabel("Day of Week")
+plt.ylabel("Median Duration (min)")
+plt.tight_layout()
+plt.show()
+
 # ===============================
 # TARGET DISTRIBUTION
 # ===============================

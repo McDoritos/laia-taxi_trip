@@ -22,6 +22,7 @@ def read_dataset(root=None, sample_frac_per_file=0.05):
         "PULocationID",
         "DOLocationID",
         "tpep_dropoff_datetime",
+        "VendorID"
     ]
     if root is None:
         root = "/app/Dataset/2013"
@@ -63,6 +64,7 @@ def read_dataset(root=None, sample_frac_per_file=0.05):
     df["DOLocationID"] = df["DOLocationID"].astype("category").cat.codes
 
     feature_cols = [
+        "VendorID",
         "trip_distance",
         "passenger_count",
         "pickup_hour",
