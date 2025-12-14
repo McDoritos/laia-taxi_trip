@@ -4,26 +4,15 @@ import json
 import sys
 import os
 import requests
-from evidently import Dataset
-from evidently import DataDefinition
 from evidently import Report
-from evidently.presets import DataDriftPreset, DataSummaryPreset 
-
-# Configuration
-MLFLOW_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI")
-MLFLOW_MODEL_NAME = os.getenv("MLFLOW_MODEL_NAME")
-GITHUB_REPO = os.getenv("GITHUB_REPOSITORY")
-GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
-LOG_FILE = "logs/inference_logs.jsonl"
-DRIFT_REPORT_FILE = "drift_report.html"
-REPORT_FILE = "drift_report.html"
+from evidently.presets import DataDriftPreset 
 
 def check_drift():
     # 1. LOAD CURRENT DATA
     print("1. Loading Current Data...")
     if not os.path.exists(LOG_FILE):
         print(f"File {LOG_FILE} not found.")
-        sys.exit(0) # Exit gracefully if no logs
+        sys.exit(0)
 
     try:
         current_data = pd.read_json(LOG_FILE, lines=True)
@@ -37,88 +26,74 @@ def check_drift():
     client = mlflow.MlflowClient()
     
     try:
-        # --- Use Aliases instead of Stages ---
         print(f"Fetching model '{MLFLOW_MODEL_NAME}' with alias 'production'...")
-        
-        # Get the specific version tagged as 'production'
-        version_info = client.get_model_version_by_alias(
-            name=MLFLOW_MODEL_NAME, 
-            alias="production"
-        )
-        
+        version_info = client.get_model_version_by_alias(name=MLFLOW_MODEL_NAME, alias="production")
         run_id = version_info.run_id
-        print(f"Reference Run ID: {run_id}")
         
-        # Download the reference dataset stored in that run
         local_ref_path = client.download_artifacts(run_id, "drift_info/reference.parquet", dst_path=".")
         reference_data = pd.read_parquet(local_ref_path)
-        
     except Exception as e:
         print(f"Failed to load reference data: {e}")
-        # Hint for debugging
-        print("Ensure you have promoted a model to 'production' alias in your deployment workflow.")
         sys.exit(1)
 
-    # 3. ALIGN COLUMNS (CRITICAL STEP)
-    # We only want to compare features that exist in both
+    # 3. ALIGN COLUMNS
     common_cols = list(set(reference_data.columns) & set(current_data.columns))
-    
-    # Filter out non-feature columns if they leaked in (like 'prediction' or IDs if not needed)
     exclude_cols = ["_prediction", "tpep_pickup_datetime"] 
     common_cols = [c for c in common_cols if c not in exclude_cols]
 
     if len(common_cols) == 0:
-        print("ERROR: No overlapping columns between reference and current data.")
-        print(f"Reference cols: {reference_data.columns.tolist()}")
-        print(f"Current cols: {current_data.columns.tolist()}")
+        print("ERROR: No overlapping columns.")
         sys.exit(1)
 
-    print(f"Comparing columns: {common_cols}")
     reference_data = reference_data[common_cols]
     current_data = current_data[common_cols]
 
-    # 4. RUN DRIFT (Same as before)
+    # 4. RUN DRIFT REPORT
     print("4. Running Drift Report...")
     report = Report(metrics=[DataDriftPreset()])
     snapshot = report.run(reference_data=reference_data, current_data=current_data)
     
-    # Save locally first (required for upload)
-    snapshot.save_html(REPORT_FILE)
+    # Save locally
+    snapshot.save_html(HTML_REPORT_FILE)
+    snapshot.save_json(JSON_REPORT_FILE)
+
+    # 5. PARSE DETAILED RESULTS
+    # evidently's as_dict() returns a structure we can search
+    results = snapshot.as_dict()
     
-    # Check for drift result (Logic from your original script)
-    results = snapshot.as_dict() if hasattr(snapshot, "as_dict") else snapshot.dict()
     drift_detected = False
+    drift_share = 0.0
+    drift_count = 0
     
-    # Parse metric results
+    # Locate the DatasetDriftMetric inside the report
     metrics_list = results.get('metrics', [])
     for metric in metrics_list:
-        val = metric.get('result', {}) or metric.get('value', {})
-        if isinstance(val, dict) and 'dataset_drift' in val:
-            drift_detected = val['dataset_drift']
+        if metric['metric'] == 'DatasetDriftMetric':
+            result_val = metric.get('result', {})
+            drift_detected = result_val.get('dataset_drift', False)
+            drift_share = result_val.get('share_of_drifted_columns', 0.0)
+            drift_count = result_val.get('number_of_drifted_columns', 0)
             break
 
-    # ==========================================
-    # 5. UPLOAD TO MLFLOW (NEW STEP)
-    # ==========================================
-    print("5. Logging to MLflow...")
+    # 6. LOG TO MLFLOW
+    print("6. Logging to MLflow...")
     mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
-    
-    # Use a specific experiment for monitoring so it doesn't mix with training runs
     mlflow.set_experiment("Weekly_Data_Drift_Checks")
     
     with mlflow.start_run(run_name="daily_check"):
-        # Log the HTML report so you can download/view it in UI
-        mlflow.log_artifact(REPORT_FILE)
+        # Log Artifacts (Visuals & Raw Data)
+        mlflow.log_artifact(HTML_REPORT_FILE)
+        mlflow.log_artifact(JSON_REPORT_FILE)
         
-        # Log the boolean result (0 or 1) so you can plot it over time
+        # Log Metrics (Graphable Numbers)
         mlflow.log_metric("drift_detected", int(drift_detected))
+        mlflow.log_metric("drift_share", drift_share)  # e.g., 0.15 (15%)
+        mlflow.log_metric("drift_count", drift_count)  # e.g., 3 columns
         
-        # Optional: Log the share of drifting features
-        # mlflow.log_metric("drift_share", ...) 
+        print(f"Drift Detected: {drift_detected}")
+        print(f"Share of Drifted Cols: {drift_share}")
 
-    print("Report uploaded to MLflow.")
-
-    # 6. TRIGGER RETRAINING (Same as before)
+    # 7. TRIGGER RETRAINING
     if drift_detected:
         print("!!! DATA DRIFT DETECTED !!!")
         trigger_retraining()
@@ -136,7 +111,6 @@ def trigger_retraining():
         "Authorization": f"Bearer {GITHUB_TOKEN}",
         "Accept": "application/vnd.github.v3+json"
     }
-    # dispatch event requires 'ref'
     resp = requests.post(url, headers=headers, json={"ref": "main"})
     
     if resp.status_code == 204:
