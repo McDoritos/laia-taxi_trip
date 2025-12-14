@@ -13,14 +13,25 @@ def small_dataset():
     """Load a small sample dataset for testing."""
     path = "Dataset/data_subset.parquet"
     df = pd.read_parquet(path)
-    
-    # Ensure derived features exist (if not already present)
+
+    # Compute target if missing
+    if "duration_min" not in df.columns:
+        df["tpep_pickup_datetime"] = pd.to_datetime(df["tpep_pickup_datetime"])
+        df["tpep_dropoff_datetime"] = pd.to_datetime(df["tpep_dropoff_datetime"])
+        df["duration_min"] = (
+            (df["tpep_dropoff_datetime"] - df["tpep_pickup_datetime"])
+            .dt.total_seconds() / 60
+        )
+        # Keep only reasonable durations
+        df = df[(df["duration_min"] > 0) & (df["duration_min"] <= 24 * 60)]
+
+    # Derived features
     if "pickup_hour" not in df.columns:
-        df["pickup_hour"] = pd.to_datetime(df["tpep_pickup_datetime"]).dt.hour
+        df["pickup_hour"] = df["tpep_pickup_datetime"].dt.hour
     if "pickup_dayofweek" not in df.columns:
-        df["pickup_dayofweek"] = pd.to_datetime(df["tpep_pickup_datetime"]).dt.weekday
+        df["pickup_dayofweek"] = df["tpep_pickup_datetime"].dt.weekday
     if "pickup_month" not in df.columns:
-        df["pickup_month"] = pd.to_datetime(df["tpep_pickup_datetime"]).dt.month
+        df["pickup_month"] = df["tpep_pickup_datetime"].dt.month
     if "is_weekend" not in df.columns:
         df["is_weekend"] = df["pickup_dayofweek"].isin([5, 6]).astype(int)
     if "is_rush_hour" not in df.columns:
@@ -37,7 +48,7 @@ def small_dataset():
         "PULocationID",
         "DOLocationID",
     ]
-    
+
     X = df[feature_cols].fillna(0).reset_index(drop=True)
     y = df["duration_min"].values
     return X, y
