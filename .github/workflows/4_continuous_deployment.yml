@@ -139,7 +139,7 @@ jobs:
           target: "/home/admin/Desktop/Flask/"
           strip_components: 1
 
-      # 2. RUN the script with Secrets Injected
+      # 2. RUN the script passing Secrets as Arguments
       - name: Deploy to Production
         if: env.API_CHANGED == 'true'
         uses: appleboy/ssh-action@v1.0.3
@@ -147,14 +147,6 @@ jobs:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
-          envs: GITHUB_USERNAME,GITHUB_TOKEN,MLFLOW_TRACKING_URI,MLFLOW_MODEL_NAME
           script: |
             cd /home/admin/Desktop/Flask
-            # No arguments needed; variables are now in the environment
-            bash deploy.sh
-        env:
-          # Define the values to be sent
-          GITHUB_USERNAME: ${{ github.actor }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          MLFLOW_TRACKING_URI: ${{ env.MLFLOW_TRACKING_URI }}
-          MLFLOW_MODEL_NAME: ${{ env.MLFLOW_MODEL_NAME }}
+            bash deploy.sh "${{ github.actor }}" "${{ secrets.GITHUB_TOKEN }}" "${{ env.MLFLOW_TRACKING_URI }}" "${{ env.MLFLOW_MODEL_NAME }}"

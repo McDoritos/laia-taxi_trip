@@ -1,39 +1,37 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Load secrets
-source .env
+# -------------------------------
+# 1. Accept Arguments
+# -------------------------------
+# We expect 4 arguments in this specific order
+if [ "$#" -ne 4 ]; then
+    echo "Usage: $0 GITHUB_USERNAME GITHUB_TOKEN MLFLOW_TRACKING_URI MLFLOW_MODEL_NAME"
+    exit 1
+fi
+
+GITHUB_USERNAME="$1"
+GITHUB_TOKEN="$2"
+MLFLOW_TRACKING_URI="$3"
+MLFLOW_MODEL_NAME="$4"
 
 # -------------------------------
-# Config
+# 2. Config
 # -------------------------------
 REGISTRY="ghcr.io"
 IMAGE_NAME="mcdoritos/laia-taxi_trip/serving"
 ALIAS="production"
 
-# MLflow tracking
-MLFLOW_TRACKING_URI="http://the-traffickers-internal.dei.uc.pt:5050"
-MLFLOW_MODEL_NAME="laia-taxi-model"
-
-# These two must be passed in environment before running script
-: "${GITHUB_USERNAME:?Need GITHUB_USERNAME env var}"
-: "${GITHUB_TOKEN:?Need GITHUB_TOKEN env var}"
-
 # -------------------------------
-# Authenticate to GHCR
+# 3. Deployment Logic
 # -------------------------------
 echo "Logging into GHCR..."
 echo "$GITHUB_TOKEN" | docker login "$REGISTRY" -u "$GITHUB_USERNAME" --password-stdin
 
-# -------------------------------
-# Pull image
-# -------------------------------
 echo "Pulling production image..."
 docker pull "$REGISTRY/$IMAGE_NAME:$ALIAS"
 
-# -------------------------------
-# Stop existing container
-# -------------------------------
+# Stop existing container if running
 if docker ps -q -f name=serving-app >/dev/null; then
     echo "Stopping existing container..."
     docker stop serving-app || true
@@ -42,15 +40,12 @@ else
     echo "No running container found, skipping stop."
 fi
 
-# -------------------------------
-# Run new container
-# -------------------------------
 echo "Starting new serving-app container..."
 
-# Create logs directory on host first to ensure it exists
+# Create logs directory on host
 mkdir -p /home/admin/Desktop/Flask/serving/logs
 
-# Run with Volume Mapping
+# Run with Volume Mapping & Env Vars
 docker run -d \
   --name serving-app \
   --restart always \
