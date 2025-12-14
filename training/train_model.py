@@ -64,16 +64,17 @@ def haversine_vectorized(lat1, lon1, lat2, lon2):
 
 def readDataset(root=None, sample_frac_per_file=0.05):
     """
-    Read parquet files and return X, y for training a model compatible with the /predict payload.
-    Only uses features present in the POST /predict payload.
+    Read parquet files and return X, y for training.
+    ALIGNED with app.py /predict endpoint handling of NaNs and types.
     """
     use_cols = [
-        "tpep_pickup_datetime",  # only needed for deriving time features
+        "tpep_pickup_datetime", 
         "trip_distance",
         "passenger_count",
         "PULocationID",
         "DOLocationID",
-        "tpep_dropoff_datetime"  # needed to compute target y
+        "tpep_dropoff_datetime",
+        "VendorID"
     ]
 
     if root is None:
@@ -98,27 +99,42 @@ def readDataset(root=None, sample_frac_per_file=0.05):
 
     df = pd.concat(dfs, ignore_index=True)
 
-    # compute target: duration in minutes
+    # --- Target Calculation ---
     pickup_col = "tpep_pickup_datetime"
     dropoff_col = "tpep_dropoff_datetime"
     df[pickup_col] = pd.to_datetime(df[pickup_col], errors="coerce")
     df[dropoff_col] = pd.to_datetime(df[dropoff_col], errors="coerce")
+    
     df["duration_min"] = (df[dropoff_col] - df[pickup_col]).dt.total_seconds() / 60.0
     df = df[(df["duration_min"] > 0) & (df["duration_min"] <= 24 * 60)]
 
-    # derived features from pickup timestamp
+    # --- Derived Features ---
     df["pickup_hour"] = df[pickup_col].dt.hour
     df["pickup_dayofweek"] = df[pickup_col].dt.weekday
     df["pickup_month"] = df[pickup_col].dt.month
     df["is_weekend"] = df["pickup_dayofweek"].isin([5, 6]).astype(int)
     df["is_rush_hour"] = df["pickup_hour"].isin([7, 8, 9, 16, 17, 18, 19]).astype(int)
 
-    # location encoding
-    df["PULocationID"] = df["PULocationID"].astype("category").cat.codes
-    df["DOLocationID"] = df["DOLocationID"].astype("category").cat.codes
+    
+    # 1. ID Columns -> Fill NaN with -1
+    id_cols = ["PULocationID", "DOLocationID", "VendorID"]
+    for col in id_cols:
+        # Coerce to numeric first (handles strings like "161"), then fillna(-1), then int32
+        df[col] = pd.to_numeric(df[col], errors='coerce').fillna(-1).astype(np.int32)
 
+    # 2. Count/Integer Columns -> Fill NaN with 0
+    int_cols = ["pickup_hour", "pickup_dayofweek", "pickup_month", 
+                "is_weekend", "is_rush_hour", "passenger_count"]
+    for col in int_cols:
+        df[col] = df[col].fillna(0).astype(np.int32)
+
+    # 3. Float Columns -> Fill NaN with 0.0
+    float_cols = ["trip_distance"]
+    for col in float_cols:
+         df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0.0).astype(np.float64)
 
     feature_cols = [
+        "VendorID",
         "trip_distance",
         "passenger_count",
         "pickup_hour",
@@ -130,8 +146,9 @@ def readDataset(root=None, sample_frac_per_file=0.05):
         "DOLocationID",
     ]
 
-    X = df[feature_cols].fillna(0).reset_index(drop=True)
+    X = df[feature_cols].reset_index(drop=True)
     y = df["duration_min"].values
+    
     return X, y
 
 

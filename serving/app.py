@@ -71,21 +71,23 @@ def predict():
     df["is_weekend"] = df["pickup_dayofweek"].isin([5,6]).astype(int)
     df["is_rush_hour"] = df["pickup_hour"].isin([7,8,9,16,17,18,19]).astype(int)
 
-    # Encode categorical features
-    df["PULocationID"] = df["PULocationID"].astype("category").cat.codes
-    df["DOLocationID"] = df["DOLocationID"].astype("category").cat.codes
+    df["PULocationID"] = pd.to_numeric(df["PULocationID"], errors='coerce').fillna(-1).astype(np.int32)
+    df["DOLocationID"] = pd.to_numeric(df["DOLocationID"], errors='coerce').fillna(-1).astype(np.int32)
 
     # Cast numeric types
     int_cols = ["pickup_hour", "pickup_dayofweek", "pickup_month",
-                "is_weekend", "is_rush_hour", "passenger_count",
-                "PULocationID", "DOLocationID", "VendorID"]
+                "is_weekend", "is_rush_hour", "passenger_count"]
     float_cols = ["trip_distance"]
+    id_cols = ["PULocationID", "DOLocationID", "VendorID"]
+    for col in id_cols:
+         if col in df.columns:
+             df[col] = df[col].fillna(-1).astype(np.int32)
     for col in int_cols:
         if col in df.columns:
-            df[col] = df[col].astype(np.int32)
+            df[col] = df[col].fillna(0).astype(np.int32)
     for col in float_cols:
         if col in df.columns:
-            df[col] = df[col].astype(np.float64)
+            df[col] = df[col].fillna(0).astype(np.float64)
 
     # Features for the model
     feature_cols = [
