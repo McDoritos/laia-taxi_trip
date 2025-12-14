@@ -5,7 +5,7 @@ set -euo pipefail
 source .env
 
 # -------------------------------
-# Config (normally passed by CI)
+# Config
 # -------------------------------
 REGISTRY="ghcr.io"
 IMAGE_NAME="mcdoritos/laia-taxi_trip/serving"
@@ -47,9 +47,15 @@ fi
 # -------------------------------
 echo "Starting new serving-app container..."
 
+# Create logs directory on host first to ensure it exists
+mkdir -p /home/admin/Desktop/Flask/serving/logs
+
+# Run with Volume Mapping
 docker run -d \
   --name serving-app \
+  --restart always \
   -p 9001:8080 \
+  -v /home/admin/Desktop/Flask/serving/logs:/app/logs \
   -e MLFLOW_TRACKING_URI="$MLFLOW_TRACKING_URI" \
   -e MLFLOW_MODEL_NAME="$MLFLOW_MODEL_NAME" \
   -e MODEL_ALIAS="$ALIAS" \
