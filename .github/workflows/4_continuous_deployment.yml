@@ -135,7 +135,7 @@ jobs:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
-          source: "serving/deploy.sh" # File in your repo
+          source: "deploy/deploy.sh"
           target: "/home/admin/Desktop/Flask/" # Folder on your VM
           strip_components: 1 # Removes 'serving/' prefix when copying
 
