@@ -243,7 +243,7 @@ with mlflow.start_run(run_name="LightGBM_Training") as run:
     )
 
    # -------------------------------------------------------------
-    # ### Capture Baseline for Drift Detection (Evidently 0.7+)
+    # ### Capture training data profiling (Evidently 0.7+)
     # -------------------------------------------------------------
     print("Generating training data baseline report...")
 
@@ -256,20 +256,25 @@ with mlflow.start_run(run_name="LightGBM_Training") as run:
     # Build Evidently dataset
     train_dataset = Dataset.from_pandas(X_train, data_definition=data_def)
 
-    # Create report
-    report = Report(metrics=[DataDriftPreset()])
+    # 2. Change Report to use DataSummaryPreset
+    # We only need 'current_data' (which is the training set here)
+    report = Report(metrics=[DataSummaryPreset()])
 
-    # Run report (returns a Snapshot object)
+    # 3. Run report passing None as reference
     snapshot = report.run(
-        reference_data=train_dataset,
+        reference_data=None, 
         current_data=train_dataset
     )
 
-    # Save JSON
-    drift_report_path = "drift_baseline.json"
-    snapshot.save_json(drift_report_path)
-    # Log to MLflow
-    mlflow.log_artifact(drift_report_path, artifact_path="drift_info")
+    # 4. Save and Log
+    summary_report_path = "training_data_summary.json"
+    snapshot.save_json(summary_report_path)
+    mlflow.log_artifact(summary_report_path, artifact_path="drift_info")
+
+    # Optional: Save HTML for a better visual tab in MLflow
+    html_path = "training_data_summary.html"
+    snapshot.save_html(html_path)
+    mlflow.log_artifact(html_path, artifact_path="drift_info")
 
     # -------------------------------------------------------------
 
