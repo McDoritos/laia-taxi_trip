@@ -37,6 +37,9 @@ jobs:
     needs: test-unit
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       - uses: docker/setup-buildx-action@v3
 
       # Build training image and upload to artifacts for use in continuous delivery
@@ -54,8 +57,8 @@ jobs:
       - name: Check if API changed
         id: api_changed
         run: |
-          # Check for changes in the 'serving' folder between this commit and main
-          CHANGED_FILES=$(git diff --name-only origin/main ${{ github.sha }} | grep '^serving/')
+          git fetch origin main  # make sure main exists locally
+          CHANGED_FILES=$(git diff --name-only origin/main ${{ github.sha }} | grep '^serving/' || true)
           echo "Changed files: $CHANGED_FILES"
           if [ -z "$CHANGED_FILES" ]; then
             echo "API_CHANGED=false" >> $GITHUB_ENV
@@ -64,6 +67,7 @@ jobs:
             echo "API_CHANGED=true" >> $GITHUB_ENV
             echo "API changes detected."
           fi
+        shell: /usr/bin/bash
 
       # Build serving image and upload to artifacts for use in continuous delivery
       - name: Build serving image
