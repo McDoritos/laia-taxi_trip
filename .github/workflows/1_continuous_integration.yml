@@ -51,6 +51,20 @@ jobs:
           outputs: type=docker,dest=/tmp/training.tar
       - run: docker load --input /tmp/training.tar
 
+      - name: Check if API changed
+        id: api_changed
+        run: |
+          # Check for changes in the 'serving' folder between this commit and main
+          CHANGED_FILES=$(git diff --name-only origin/main ${{ github.sha }} | grep '^serving/')
+          echo "Changed files: $CHANGED_FILES"
+          if [ -z "$CHANGED_FILES" ]; then
+            echo "API_CHANGED=false" >> $GITHUB_ENV
+            echo "No API changes detected."
+          else
+            echo "API_CHANGED=true" >> $GITHUB_ENV
+            echo "API changes detected."
+          fi
+
       # Build serving image and upload to artifacts for use in continuous delivery
       - name: Build serving image
         uses: docker/build-push-action@v5
