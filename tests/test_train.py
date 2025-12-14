@@ -37,6 +37,17 @@ def small_dataset():
     if "is_rush_hour" not in df.columns:
         df["is_rush_hour"] = df["pickup_hour"].isin([7,8,9,16,17,18,19]).astype(int)
 
+    def traffic_period(hour: int) -> int:
+        """0 = low, 1 = medium, 2 = high traffic intensity"""
+        if 5 <= hour <= 7:
+            return 0
+        elif (9 <= hour <= 15) or (17 <= hour <= 18):
+            return 2
+        else:
+            return 1
+
+    df["traffic_period"] = df["pickup_hour"].apply(traffic_period).astype(np.int32)
+
     feature_cols = [
         "trip_distance",
         "passenger_count",
@@ -45,6 +56,7 @@ def small_dataset():
         "pickup_month",
         "is_weekend",
         "is_rush_hour",
+        "traffic_period",
         "PULocationID",
         "DOLocationID",
     ]
@@ -65,6 +77,7 @@ def test_dataset_columns(small_dataset):
         "pickup_month",
         "is_weekend",
         "is_rush_hour",
+        "traffic_period",
         "PULocationID",
         "DOLocationID",
     ]
@@ -80,6 +93,7 @@ def test_feature_sanity(small_dataset):
     assert X["pickup_dayofweek"].between(0, 6).all()
     assert set(X["is_weekend"].unique()).issubset({0, 1})
     assert set(X["is_rush_hour"].unique()).issubset({0, 1})
+    assert X["traffic_period"].between(0, 2).all()
     assert X["trip_distance"].min() >= 0
     assert X["passenger_count"].min() >= 0
 

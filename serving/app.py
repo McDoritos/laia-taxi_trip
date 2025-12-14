@@ -107,7 +107,7 @@ def predict():
     feature_cols = [
         "VendorID", "trip_distance", "passenger_count",
         "pickup_hour", "pickup_dayofweek", "pickup_month",
-        "is_weekend", "is_rush_hour", "PULocationID", "DOLocationID"
+        "is_weekend", "is_rush_hour", "traffic_period", "PULocationID", "DOLocationID"
     ]
     X = df[feature_cols]
 
