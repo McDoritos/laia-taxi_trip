@@ -56,8 +56,10 @@ jobs:
 
       - name: Check if API changed
         id: api_changed
+        shell: bash
         run: |
-          git fetch origin main  # make sure main exists locally
+          set -e  # falha se algum comando der erro, exceto o 'grep || true'
+          git fetch origin main
           CHANGED_FILES=$(git diff --name-only origin/main ${{ github.sha }} | grep '^serving/' || true)
           echo "Changed files: $CHANGED_FILES"
           if [ -z "$CHANGED_FILES" ]; then
@@ -67,7 +69,6 @@ jobs:
             echo "API_CHANGED=true" >> $GITHUB_ENV
             echo "API changes detected."
           fi
-        shell: /usr/bin/bash
 
       # Build serving image and upload to artifacts for use in continuous delivery
       - name: Build serving image
