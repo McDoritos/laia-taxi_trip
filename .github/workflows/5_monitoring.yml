@@ -17,7 +17,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # 1. SETUP SSH (Copied from 2_continuous_delivery.yml)
+      # 1. SETUP SSH
       - name: Setup SSH
         run: |
           mkdir -p ~/.ssh
@@ -30,11 +30,11 @@ jobs:
               StrictHostKeyChecking no" >> ~/.ssh/config
 
       # 2. DOWNLOAD LOGS
+      # Changed: Specific file download (safer than *) and removed -r
       - name: Download Logs
         run: |
           mkdir -p logs
-          # We use the explicit hostname so it matches the ~/.ssh/config entry above
-          scp -r ${{ secrets.SSH_USER }}@the-traffickers-internal.dei.uc.pt:/home/admin/Desktop/Flask/serving/logs/* ./logs/ || echo "No logs found, creating empty directory"
+          scp ${{ secrets.SSH_USER }}@the-traffickers-internal.dei.uc.pt:/home/admin/Desktop/Flask/serving/logs/inference_logs.jsonl ./logs/ || echo "No logs found"
 
       # 3. BUILD & RUN DOCKER CONTAINER
       - name: Run Drift Check in Docker
@@ -42,12 +42,10 @@ jobs:
           MLFLOW_TRACKING_USERNAME: ${{ secrets.MLFLOW_USERNAME }}
           MLFLOW_TRACKING_PASSWORD: ${{ secrets.MLFLOW_PASSWORD }}
         run: |
-          # Build the image using your Dockerfile.monitoring
           docker build -t drift-checker -f monitoring/Dockerfile.monitoring .
 
-          # Run the container
-          # -v $(pwd)/logs:/app/logs: Maps the logs we just downloaded into the container
-          # --env-file: Passes all current env vars (MLFLOW_*, GITHUB_*, etc) to container
+          # -v $(pwd)/logs:/app/logs : REQUIRED so the container sees the downloaded file
+          # No output volume needed; script uploads directly to MLflow
           docker run --rm \
             -v $(pwd)/logs:/app/logs \
             -e MLFLOW_TRACKING_URI \
