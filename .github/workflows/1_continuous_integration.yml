@@ -69,9 +69,19 @@ jobs:
             echo "API_CHANGED=true" >> $GITHUB_ENV
             echo "API changes detected."
           fi
+          
+      - name: Set serving image tag
+        id: serving_tag
+        run: |
+          if [ "${API_CHANGED}" = "true" ]; then
+            echo "SERVING_TAG=${GITHUB_SHA}" >> $GITHUB_ENV
+          else
+            echo "SERVING_TAG=production" >> $GITHUB_ENV
+          fi
 
       # Build serving image and upload to artifacts for use in continuous delivery
       - name: Build serving image
+        if: env.API_CHANGED == 'true'
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -81,6 +91,7 @@ jobs:
           tags: serving:${{ github.sha }}
           outputs: type=docker,dest=/tmp/serving.tar
       - run: docker load --input /tmp/serving.tar
+        if: env.API_CHANGED == 'true'
 
       # Log in to GitHub Container Registry (GHCR)
       # This is the repository where we will upload our images
@@ -101,6 +112,7 @@ jobs:
       # Tag serving image with commit sha; this image will be used for further testing in the following workflows
       # Push serving image to repository
       - name: Push serving staging image
+        if: env.API_CHANGED == 'true'
         run: |
           docker tag serving:${{ github.sha }} ${{ env.REGISTRY }}/mcdoritos/laia-taxi_trip/serving:${{ github.sha }}
           docker push ${{ env.REGISTRY }}/mcdoritos/laia-taxi_trip/serving:${{ github.sha }}
