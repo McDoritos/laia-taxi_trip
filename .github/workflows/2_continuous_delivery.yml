@@ -24,10 +24,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Debug workflow outputs
+      - name: Check if API changed
+        id: api_changed
+        shell: bash
         run: |
-          echo "SERVING_TAG 
-          echo "API_CHANGED 
+          git fetch origin main
+          CHANGED=$(git diff --name-only HEAD~1 HEAD | grep '^serving/' || true)
+          echo "Changed files: $CHANGED"
+          if [ -n "$CHANGED" ]; then
+            echo "API_CHANGED=true" >> $GITHUB_ENV
+            echo "SERVING_TAG=${{ github.sha }}" >> $GITHUB_ENV
+          else
+            echo "API_CHANGED=false" >> $GITHUB_ENV
+            echo "SERVING_TAG=production" >> $GITHUB_ENV
+          fi
 
       # 1. Install DVC and SSH support
       - uses: actions/setup-python@v5

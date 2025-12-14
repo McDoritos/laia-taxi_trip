@@ -35,9 +35,7 @@ jobs:
     # Passed tests, now build docker images for training and serving
     runs-on: self-hosted
     needs: test-unit
-    outputs:
-      SERVING_TAG: ${{ steps.set_serving_tag.outputs.SERVING_TAG }}
-      API_CHANGED: ${{ steps.check_api.outputs.API_CHANGED }}
+
     steps:
       - uses: actions/checkout@v4
         with:
@@ -61,25 +59,17 @@ jobs:
         id: api_changed
         shell: bash
         run: |
-          set -e  # falha se algum comando der erro, exceto o 'grep || true'
           git fetch origin main
-          CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD | grep '^serving/' || true)
-          echo "Changed files: $CHANGED_FILES"
-          if [ -z "$CHANGED_FILES" ]; then
-            echo "API_CHANGED=false" >> $GITHUB_ENV
-            echo "No API changes detected."
-          else
+          CHANGED=$(git diff --name-only HEAD~1 HEAD | grep '^serving/' || true)
+          echo "Changed files: $CHANGED"
+          if [ -n "$CHANGED" ]; then
             echo "API_CHANGED=true" >> $GITHUB_ENV
-            echo "API changes detected."
-          fi
-          
-      - name: Set serving image tag
-        id: serving_tag
-        run: |
-          if [ "${API_CHANGED}" = "true" ]; then
-            echo "SERVING_TAG=${GITHUB_SHA}" >> $GITHUB_ENV
+            echo "SERVING_TAG=${{ github.sha }}" >> $GITHUB_ENV
+            echo "API changes detected"
           else
+            echo "API_CHANGED=false" >> $GITHUB_ENV
             echo "SERVING_TAG=production" >> $GITHUB_ENV
+            echo "No API changes detected"
           fi
 
       # Build serving image and upload to artifacts for use in continuous delivery
