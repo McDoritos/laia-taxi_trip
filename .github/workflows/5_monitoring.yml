@@ -59,9 +59,9 @@ jobs:
             drift-checker
           echo "exit_code=$?" >> $GITHUB_OUTPUT
 
-      - name: Trigger retraining
+      - name: Upload drift signal artifact
         if: steps.drift_check.outputs.exit_code == '10'
-        uses: peter-evans/workflow-dispatch@v2
+        uses: actions/upload-artifact@v4
         with:
-          workflow: 2b_continuous_delivery.yml
-          ref: main
+          name: drift-detected
+          path: /dev/null
