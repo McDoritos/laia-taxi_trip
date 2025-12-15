@@ -59,40 +59,41 @@ def check_drift():
 
     # 4. RUN DRIFT REPORT
     print("4. Running Drift Report...")
-    report = Report(metrics=[DataDriftPreset()])
+    report = Report(metrics=[DataDriftPreset()],
+                    include_tests=True)
     snapshot = report.run(reference_data=reference_data, current_data=current_data)
     
     snapshot.save_html(HTML_REPORT_FILE)
     snapshot.save_json(JSON_REPORT_FILE)
 
     # 5. PARSE DETAILED RESULTS
-    # ✅ CORRECTED: Use .dict() based on your report.py file
     results = snapshot.dict()
-    
+    metrics_list = results.get('metrics', [])
     drift_detected = False
     drift_share = 0.0
     drift_count = 0
     
-    
-    metrics_list = results.get('metrics', [])
-    
-    found_drift_metric = False
-    
     for metric in metrics_list:
-        res = metric.get('result', {})
+        metric_config = metric.get('config', {})
+        metric_type = metric_config.get('type', '')
         
-        # Check if this metric has the drift flags we need
-        if isinstance(res, dict) and 'dataset_drift' in res:
-            drift_detected = res['dataset_drift']
-            drift_share = res.get('share_of_drifted_columns', 0.0)
-            drift_count = res.get('number_of_drifted_columns', 0)
-            found_drift_metric = True
+        # Look specifically for the DriftedColumnsCount metric
+        if metric_type == 'evidently:metric_v2:DriftedColumnsCount':
+            val = metric.get('value', {})
+            
+            # Extract statistics
+            drift_share = val.get('share', 0.0)
+            drift_count = val.get('count', 0)
+            
+            # Calculate drift flag manually: share >= threshold (default 0.5)
+            threshold = metric_config.get('drift_share', 0.5)
+            drift_detected = drift_share >= threshold
+            
+            print(f"Drift Found: Share={drift_share:.3f}, Count={drift_count}, Threshold={threshold}")
             break
             
     if not found_drift_metric:
         print("WARNING: Could not find 'dataset_drift' in report results.")
-        # Optional: Print keys to debug if it fails
-        # print([m.get('metric') for m in metrics_list])
 
     # 6. LOG TO MLFLOW
     print("6. Logging to MLflow...")
