@@ -1,0 +1,29 @@
+name: 2 - Continuous Delivery
+run-name: "${{ github.workflow }}"
+
+permissions: write-all
+
+on:
+  workflow_run:
+    workflows: ["1 - Continuous Integration"]
+    types: [completed]
+  workflow_dispatch:
+
+env:
+  REGISTRY: ${{ vars.REGISTRY }}
+  MLFLOW_TRACKING_URI: ${{ vars.MLFLOW_TRACKING_URI }}
+  MLFLOW_EXPERIMENT_NAME: ${{ vars.MLFLOW_EXPERIMENT_NAME }}
+  MLFLOW_MODEL_NAME: ${{ vars.MLFLOW_MODEL_NAME }}
+  SERVING_TAG: ${{ github.event.workflow_run.outputs.serving_tag }}
+  API_CHANGED: ${{ github.event.workflow_run.outputs.API_CHANGED }}
+
+jobs:
+  drift-check:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+
+      
+
+
+      

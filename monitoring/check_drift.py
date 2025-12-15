@@ -111,27 +111,10 @@ def check_drift():
     # 7. TRIGGER RETRAINING
     if drift_detected:
         print("!!! DATA DRIFT DETECTED !!!")
-        trigger_retraining()
+        sys.exit(10)
     else:
         print("System stable.")
-
-def trigger_retraining():
-    if os.environ.get("DRY_RUN") == "true":
-        print("DRY RUN: Skipping Github Action Trigger.")
-        return
-
-    print("Triggering retraining workflow...")
-    url = f"https://api.github.com/repos/{GITHUB_REPO}/actions/workflows/2_continuous_delivery.yml/dispatches"
-    headers = {
-        "Authorization": f"Bearer {GITHUB_TOKEN}",
-        "Accept": "application/vnd.github.v3+json"
-    }
-    resp = requests.post(url, headers=headers, json={"ref": "main"})
-    
-    if resp.status_code == 204:
-        print("Workflow triggered successfully.")
-    else:
-        print(f"Failed to trigger workflow: {resp.text}")
+        sys.exit(0)
 
 if __name__ == "__main__":
     check_drift()

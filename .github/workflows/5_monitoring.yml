@@ -9,7 +9,6 @@ env:
   MLFLOW_TRACKING_URI: ${{ vars.MLFLOW_TRACKING_URI }}
   MLFLOW_MODEL_NAME: ${{ vars.MLFLOW_MODEL_NAME }}
   GITHUB_TOKEN: ${{ secrets.PAT_TOKEN }}
-  DRY_RUN: "true"
 
 jobs:
   check-drift:
@@ -56,3 +55,11 @@ jobs:
             -e GITHUB_REPOSITORY \
             -e DRY_RUN \
             drift-checker
+          echo "exit_code=$?" >> $GITHUB_OUTPUT
+
+      - name: Trigger retraining
+        if: steps.drift_check.outputs.exit_code == '10'
+        uses: peter-evans/workflow-dispatch@v1
+        with:
+          workflow: 2b_continuous_delivery.yml
+          ref: main
