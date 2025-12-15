@@ -91,9 +91,6 @@ def check_drift():
             
             print(f"Drift Found: Share={drift_share:.3f}, Count={drift_count}, Threshold={threshold}")
             break
-            
-    if not found_drift_metric:
-        print("WARNING: Could not find 'dataset_drift' in report results.")
 
     # 6. LOG TO MLFLOW
     print("6. Logging to MLflow...")
