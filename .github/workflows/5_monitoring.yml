@@ -58,6 +58,7 @@ jobs:
             -e DRY_RUN \
             drift-checker
           echo "exit_code=$?" >> $GITHUB_OUTPUT
+          echo "exit_code=$?"
 
       - name: Upload drift signal artifact
         if: steps.drift_check.outputs.exit_code == '10'
