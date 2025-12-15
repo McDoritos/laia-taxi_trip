@@ -32,7 +32,6 @@ jobs:
       - run: uv run pytest tests/test_train.py -v
 
   build-images:
-    # Passed tests, now build docker images for training and serving
     runs-on: self-hosted
     needs: test-unit
 
@@ -43,7 +42,6 @@ jobs:
 
       - uses: docker/setup-buildx-action@v3
 
-      # Build training image and upload to artifacts for use in continuous delivery
       - name: Build training image
         uses: docker/build-push-action@v5
         with:
@@ -72,7 +70,6 @@ jobs:
             echo "No API changes detected"
           fi
 
-      # Build serving image and upload to artifacts for use in continuous delivery
       - name: Build serving image
         if: env.API_CHANGED == 'true'
         uses: docker/build-push-action@v5
@@ -86,24 +83,20 @@ jobs:
       - run: docker load --input /tmp/serving.tar
         if: env.API_CHANGED == 'true'
 
-      # Log in to GitHub Container Registry (GHCR)
-      # This is the repository where we will upload our images
+
       - uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Tag training image with current commit sha
-      # This image will not be used anymore, thus will not be promoted to staging or production so it is linked only to the commit
-      # Push training image to repository
+
       - name: Push training image
         run: |
           docker tag training:${{ github.sha }} ${{ env.REGISTRY }}/mcdoritos/laia-taxi_trip/training:${{ github.sha }}
           docker push ${{ env.REGISTRY }}/mcdoritos/laia-taxi_trip/training:${{ github.sha }}
 
-      # Tag serving image with commit sha; this image will be used for further testing in the following workflows
-      # Push serving image to repository
+
       - name: Push serving staging image
         if: env.API_CHANGED == 'true'
         run: |

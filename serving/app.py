@@ -8,7 +8,6 @@ import json
 LOG_FILE = "logs/inference_logs.jsonl"
 
 def log_inference(df: pd.DataFrame, predictions):
-    """Log each inference request and prediction to a JSONL file."""
     records = df.to_dict(orient="records")
     with open(LOG_FILE, "a", encoding="utf-8") as f:
         for row, pred in zip(records, predictions.tolist()):
@@ -21,16 +20,16 @@ app = Flask(__name__)
 
 def traffic_period(hour: int) -> int:
     """
-    0 = low traffic (short trips)
+    0 = low traffic
     1 = medium traffic
-    2 = high traffic (long trips)
+    2 = high traffic 
     """
     if 5 <= hour <= 7:
-        return 0  # low
+        return 0
     elif (9 <= hour <= 15) or (17 <= hour <= 18):
-        return 2  # high
+        return 2
     else:
-        return 1  # medium
+        return 1
 
 MODEL_NAME = os.getenv('MLFLOW_MODEL_NAME')
 MODEL_ALIAS = os.getenv("MODEL_ALIAS")
@@ -46,7 +45,6 @@ except Exception as e:
 
 @app.route("/model-info", methods=["GET"])
 def model_info():
-    """Return current model alias version + run ID hash"""
     try:
         from mlflow.tracking import MlflowClient
         client = MlflowClient()
@@ -76,7 +74,6 @@ def predict():
 
     df = pd.DataFrame(json_input['data'])
 
-    # --- DERIVED FEATURES ---
     df["tpep_pickup_datetime"] = pd.to_datetime(df["tpep_pickup_datetime"], errors="coerce")
     df["pickup_hour"] = df["tpep_pickup_datetime"].dt.hour
     df["pickup_dayofweek"] = df["tpep_pickup_datetime"].dt.weekday
@@ -88,7 +85,6 @@ def predict():
     df["PULocationID"] = pd.to_numeric(df["PULocationID"], errors='coerce').fillna(-1).astype(np.int32)
     df["DOLocationID"] = pd.to_numeric(df["DOLocationID"], errors='coerce').fillna(-1).astype(np.int32)
 
-    # Cast numeric types
     int_cols = ["pickup_hour", "pickup_dayofweek", "pickup_month",
                 "is_weekend", "is_rush_hour", "passenger_count", "traffic_period"]
     float_cols = ["trip_distance"]
@@ -103,7 +99,6 @@ def predict():
         if col in df.columns:
             df[col] = df[col].fillna(0).astype(np.float64)
 
-    # Features for the model
     feature_cols = [
         "VendorID", "trip_distance", "passenger_count",
         "pickup_hour", "pickup_dayofweek", "pickup_month",

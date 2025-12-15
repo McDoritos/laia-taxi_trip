@@ -1,17 +1,14 @@
 FROM python:3.13
-# Install uv (modern Python packaging tool)
+
 RUN pip install uv
 
 WORKDIR /app
 COPY serving/* .
 
-# Sync dependencies using uv
 RUN uv sync --frozen
-
 
 COPY serving/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
-# Entrypoint handles permissions, CMD runs the app
 ENTRYPOINT ["/entrypoint.sh"]
 CMD ["uv", "run", "python", "app.py"]

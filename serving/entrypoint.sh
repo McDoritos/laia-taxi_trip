@@ -5,7 +5,6 @@ LOG_DIR="/app/logs"
 
 mkdir -p "$LOG_DIR"
 
-# UID/GID do host (GitHub runner)
 HOST_UID=${HOST_UID:-1000}
 HOST_GID=${HOST_GID:-1000}
 

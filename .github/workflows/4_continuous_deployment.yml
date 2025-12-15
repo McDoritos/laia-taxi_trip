@@ -19,7 +19,7 @@ env:
 
 jobs:
   deploy-prod:
-    # Run only if previous stage finished successfully
+ 
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: self-hosted
 
@@ -45,21 +45,12 @@ jobs:
             echo "No API changes detected"
           fi
 
-      # Here we are just loging in to GHCR and pulling the serving image with production tag and running it
-      # In a real setup the deployment can be made in several ways, depending on the automation,
-      # purpose, and infra. Some examples:
-      # - We can connect through ssh and update the env
-      # - if we have orchestrators we can send/define/update the new versions to where the system is watching
-      # - the system itself might be monitoring repos and update when the new versions are pushed
-      # Also, in real setups the infra will be decoupled from the models. Here everything moves forward together
-      # but if we only change the model it is not necessary to redeploy the infrascruture. Serving frameworks
-      # such as TF serving can manage model A/B testing, rollout, rollback, ...
-      # 1. Install DVC and SSH support
+
       - uses: actions/setup-python@v5
         with: { python-version: "3.13" }
       - run: pip install uv "dvc[ssh]"
 
-      # 2. Setup SSH for DVC (Connects to internal server)
+
       - name: Setup SSH
         run: |
           mkdir -p ~/.ssh
@@ -71,18 +62,15 @@ jobs:
               IdentityFile ~/.ssh/dvc_runner_key
               StrictHostKeyChecking no" >> ~/.ssh/config
 
-      # --- ADD THIS STEP HERE ---
+
       - name: Clean DVC Cache
         run: |
           echo "Cleaning .dvc/cache to prevent corruption on self-hosted runner..."
           rm -rf .dvc/cache
-      # --------------------------
-      # 3. Pull Data from Remote Storage
+
       - name: DVC Pull
         run: dvc pull -v --jobs 1 Dataset/2013.dvc
-      # 4. DEBUG: Verify Data Existence
-      # This step checks if 'Dataset' folder exists and has the parquet file.
-      # If this fails, it means your DVC tracked folder is named something else!
+
       - name: Check Data Path
         run: |
           echo "Checking contents of workspace..."
@@ -113,8 +101,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # -----------------------------------
-      # Promote model to production
+ 
       - name: Promote model to staging
         if: steps.ab_test.conclusion == 'success'
         env:
@@ -127,7 +114,6 @@ jobs:
           TO_ALIAS: production
         run: uv run python model-promotion/promote_model.py
 
-      # 1. COPY the deploy script to the server
       - name: Update Deploy Script on Server
         if: env.API_CHANGED == 'true'
         uses: appleboy/scp-action@v0.1.7
@@ -139,7 +125,6 @@ jobs:
           target: "/home/admin/Desktop/Flask/"
           strip_components: 1
 
-      # 2. RUN the script passing Secrets as Arguments
       - name: Deploy to Production
         if: env.API_CHANGED == 'true'
         uses: appleboy/ssh-action@v1.0.3
