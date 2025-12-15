@@ -1,5 +1,7 @@
 name: 5 - Daily Drift Check
 
+permissions: write-all
+
 on:
   schedule:
     - cron: "0 8 * * *" # Run every day at 8am
@@ -59,7 +61,7 @@ jobs:
 
       - name: Trigger retraining
         if: steps.drift_check.outputs.exit_code == '10'
-        uses: peter-evans/workflow-dispatch@v4
+        uses: peter-evans/workflow-dispatch@v2
         with:
           workflow: 2b_continuous_delivery.yml
           ref: main
