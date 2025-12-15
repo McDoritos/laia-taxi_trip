@@ -1,4 +1,4 @@
-name: 2 - Continuous Delivery
+name: 2b - Continuous Delivery
 run-name: "${{ github.workflow }}"
 
 permissions: write-all
