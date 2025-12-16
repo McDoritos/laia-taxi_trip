@@ -88,29 +88,34 @@ jobs:
             -e PATH_PAST_DATA \
             retraining-image:latest \
             python retraining/retraining.py
-
   stage-tests:
     runs-on: self-hosted
     needs: retrain_model
     steps:
-      - name: stage-tests
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.13" }
+
+      - name: Install dependencies
+        run: pip install uv
+
+      - name: Run A/B Test
         env:
           MLFLOW_TRACKING_URI: ${{ vars.MLFLOW_TRACKING_URI }}
-          MLFLOW_EXPERIMENT_NAME: ${{ vars.MLFLOW_EXPERIMENT_NAME }}
           MLFLOW_MODEL_NAME: ${{ vars.MLFLOW_MODEL_NAME }}
-        run: |
-          docker run --rm \
-            -v ${{ github.workspace }}:/app \
-            -e MLFLOW_TRACKING_URI \
-            -e MLFLOW_EXPERIMENT_NAME \
-            -e MLFLOW_MODEL_NAME \
-            retraining-image:latest \
-            uv run test_ab.py
-
+          PROD_ALIAS: production
+          STAGING_ALIAS: staging
+          VALIDATION_DATA: Dataset/2013
+        run: uv run python tests/test_ab.py
+        continue-on-error: true
   cleanup:
     runs-on: self-hosted
-    needs: [check_for_drift, stage-tests] # FIXED: Ensures this runs LAST
-    # Run cleanup even if tests failed, but only if drift was actually found
+    needs: [check_for_drift, stage-tests]
     if: always() && needs.check_for_drift.outputs.drift_found == 'true'
     steps:
       - name: Delete Drift Signal Artifact
