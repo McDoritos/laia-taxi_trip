@@ -12,8 +12,8 @@ RUN pip install uv
 
 WORKDIR /app
 
-COPY training/ .
+COPY retraining/ .
 
 RUN uv sync --frozen
 
-ENTRYPOINT ["uv", "run", "python", "train_model.py"]
+ENTRYPOINT ["uv", "run", "python", "retraining.py"]
