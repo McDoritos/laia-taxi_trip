@@ -92,17 +92,15 @@ jobs:
 
       - name: Version retraining dataset with DVC
         run: |
-          # Git Identity is required for the commit
           git config --global user.name "GitHub Action"
           git config --global user.email "action@github.com"
 
-          # 1. Add new data to DVC
           dvc add data/retraining_dataset.parquet
-
-          # 2. Push data to remote storage (Uses the SSH setup from earlier)
           dvc push
 
-          # 3. Commit the DVC pointer file to Git
-          git add data/retraining_dataset.parquet.dvc .gitignore
-          git commit -m "Add live retraining dataset [skip ci]"
+          # Add both the DVC file and the local gitignore
+          git add data/retraining_dataset.parquet.dvc data/.gitignore
+
+          # Commit only if there are changes, preventing exit code 1
+          git diff --staged --quiet || git commit -m "Add live retraining dataset [skip ci]"
           git push
