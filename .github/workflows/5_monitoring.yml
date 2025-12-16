@@ -4,13 +4,14 @@ permissions: write-all
 
 on:
   schedule:
-    - cron: "0 8 * * *" 
+    - cron: "0 8 * * *"
   workflow_dispatch:
 
 env:
   MLFLOW_TRACKING_URI: ${{ vars.MLFLOW_TRACKING_URI }}
   MLFLOW_MODEL_NAME: ${{ vars.MLFLOW_MODEL_NAME }}
   GITHUB_TOKEN: ${{ secrets.PAT_TOKEN }}
+  DRY_RUN: "true"
 
 jobs:
   check-drift:
@@ -24,28 +25,25 @@ jobs:
           mkdir -p ~/.ssh
           echo "${{ secrets.DVC_SSH_KEY }}" > ~/.ssh/dvc_runner_key
           chmod 600 ~/.ssh/dvc_runner_key
-
-          # Configure SSH to use this key for your internal host
           echo "Host the-traffickers-internal.dei.uc.pt
               IdentityFile ~/.ssh/dvc_runner_key
               StrictHostKeyChecking no" >> ~/.ssh/config
 
-   
       - name: Download Logs
         run: |
           mkdir -p logs
           scp ${{ secrets.SSH_USER }}@the-traffickers-internal.dei.uc.pt:/home/admin/Desktop/Flask/serving/logs/inference_logs.jsonl ./logs/ || echo "No logs found"
 
-
       - name: Run Drift Check in Docker
+        id: drift_check
         env:
           MLFLOW_TRACKING_USERNAME: ${{ secrets.MLFLOW_USERNAME }}
           MLFLOW_TRACKING_PASSWORD: ${{ secrets.MLFLOW_PASSWORD }}
         run: |
           docker build -t drift-checker -f monitoring/Dockerfile.monitoring .
 
-          # -v $(pwd)/logs:/app/logs : REQUIRED so the container sees the downloaded file
-          # No output volume needed; script uploads directly to MLflow
+          # We use "|| exit_code=$?" to capture the exit code (e.g., 10) 
+          # instead of letting the workflow crash immediately.
           docker run --rm \
             -v $(pwd)/logs:/app/logs \
             -e MLFLOW_TRACKING_URI \
@@ -55,9 +53,11 @@ jobs:
             -e GITHUB_TOKEN \
             -e GITHUB_REPOSITORY \
             -e DRY_RUN \
-            drift-checker
-          echo "exit_code=$?" >> $GITHUB_OUTPUT
-          echo "exit_code=$?"
+            drift-checker || exit_code=$?
+
+          # Store the code (default to 0 if undefined) in GitHub Outputs
+          echo "exit_code=${exit_code:-0}" >> $GITHUB_OUTPUT
+          echo "Drift Check exited with: ${exit_code:-0}"
 
       - name: Upload drift signal artifact
         if: steps.drift_check.outputs.exit_code == '10'
