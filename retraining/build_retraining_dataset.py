@@ -36,7 +36,7 @@ labels_exploded['seq_id'] = labels_exploded.groupby('request_id').cumcount()
 # This ensures 1st log gets 1st label, 2nd log gets 2nd label.
 new_data = inf.merge(labels_exploded, on=["request_id", "seq_id"], how="inner")
 
-new_data = new_data.rename(columns={"true_duration": "duration_min"})
+new_data = new_data.rename(columns={"labels": "duration_min"})
 
 # Clean up helper column
 new_data = new_data.drop(columns=['seq_id'])
@@ -57,6 +57,9 @@ if os.path.exists(dataset_path):
 else:
     print("No existing dataset found. Creating new one.")
     combined = new_data
+
+new_data = new_data.drop(columns=['request_id'])
+new_data = new_data.drop(columns=['_prediction'])
 
 # 7. Save
 combined.to_parquet(dataset_path, index=False)
