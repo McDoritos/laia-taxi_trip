@@ -76,65 +76,54 @@ def preprocess_data(df):
     """
     if df.empty:
         return df, None
-
-    # --- 1. Label Normalization ---
-    # Handle different names for the target variable
-    if "duration_min" not in df.columns:
-        if "true_duration" in df.columns:
-            df["duration_min"] = df["true_duration"]
-        elif "trip_time_in_secs" in df.columns: # Common in older NYC data
-             df["duration_min"] = df["trip_time_in_secs"] / 60.0
-        elif "tpep_dropoff_datetime" in df.columns and "tpep_pickup_datetime" in df.columns:
-            df["tpep_pickup_datetime"] = pd.to_datetime(df["tpep_pickup_datetime"])
-            df["tpep_dropoff_datetime"] = pd.to_datetime(df["tpep_dropoff_datetime"])
-            df["duration_min"] = (df["tpep_dropoff_datetime"] - df["tpep_pickup_datetime"]).dt.total_seconds() / 60.0
     
-    # Filter invalid targets
-    df = df[(df["duration_min"] > 0) & (df["duration_min"] <= 1440)] # Max 24h
-
-    # --- 2. Feature Engineering ---
-    # Create pickup_datetime if missing (some old datasets split date/time)
-    if "tpep_pickup_datetime" not in df.columns:
-         if "pickup_datetime" in df.columns:
-             df["tpep_pickup_datetime"] = pd.to_datetime(df["pickup_datetime"])
-
-    if "pickup_hour" not in df.columns and "tpep_pickup_datetime" in df.columns:
-         df["tpep_pickup_datetime"] = pd.to_datetime(df["tpep_pickup_datetime"])
-         df["pickup_hour"] = df["tpep_pickup_datetime"].dt.hour
-         df["pickup_dayofweek"] = df["tpep_pickup_datetime"].dt.weekday
-         df["pickup_month"] = df["tpep_pickup_datetime"].dt.month
-
-    # Ensure Derived Features exist
-    if "traffic_period" not in df.columns and "pickup_hour" in df.columns:
-        df["traffic_period"] = df["pickup_hour"].apply(traffic_period)
+    pickup_col = "tpep_pickup_datetime"
+    dropoff_col = "tpep_dropoff_datetime"
+    df[pickup_col] = pd.to_datetime(df[pickup_col], errors="coerce")
+    df[dropoff_col] = pd.to_datetime(df[dropoff_col], errors="coerce")
     
-    if "is_weekend" not in df.columns and "pickup_dayofweek" in df.columns:
-        df["is_weekend"] = df["pickup_dayofweek"].isin([5, 6]).astype(int)
+    df["duration_min"] = (df[dropoff_col] - df[pickup_col]).dt.total_seconds() / 60.0
+    df = df[(df["duration_min"] > 0) & (df["duration_min"] <= 24 * 60)]
 
-    if "is_rush_hour" not in df.columns and "pickup_hour" in df.columns:
-        df["is_rush_hour"] = df["pickup_hour"].isin([7, 8, 9, 16, 17, 18, 19]).astype(int)
+    df["pickup_hour"] = df[pickup_col].dt.hour
+    df["pickup_dayofweek"] = df[pickup_col].dt.weekday
+    df["pickup_month"] = df[pickup_col].dt.month
+    df["is_weekend"] = df["pickup_dayofweek"].isin([5, 6]).astype(int)
+    df["is_rush_hour"] = df["pickup_hour"].isin([7, 8, 9, 16, 17, 18, 19]).astype(int)
+    df["traffic_period"] = df["pickup_hour"].apply(traffic_period).astype(np.int32)
 
-    # --- 3. Type Safety & Column Selection ---
+    
+    id_cols = ["PULocationID", "DOLocationID", "VendorID"]
+    for col in id_cols:
+        df[col] = pd.to_numeric(df[col], errors='coerce').fillna(-1).astype(np.int32)
+
+    int_cols = ["pickup_hour", "pickup_dayofweek", "pickup_month", 
+                "is_weekend", "is_rush_hour", "passenger_count", "traffic_period"]
+    for col in int_cols:
+        df[col] = df[col].fillna(0).astype(np.int32)
+
+    float_cols = ["trip_distance"]
+    for col in float_cols:
+         df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0.0).astype(np.float64)
+
     feature_cols = [
-        "VendorID", "trip_distance", "passenger_count", 
-        "pickup_hour", "pickup_dayofweek", "pickup_month", 
-        "is_weekend", "is_rush_hour", "traffic_period", 
-        "PULocationID", "DOLocationID"
+        "VendorID",
+        "trip_distance",
+        "passenger_count",
+        "pickup_hour",
+        "pickup_dayofweek",
+        "pickup_month",
+        "is_weekend",
+        "is_rush_hour",
+        "traffic_period",
+        "PULocationID",
+        "DOLocationID",
     ]
-    
-    # Fill NAs and cast types
-    for col in feature_cols:
-        if col not in df.columns:
-            df[col] = 0
-        df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
 
-    # Cast integers
-    int_cols = ["pickup_hour", "pickup_dayofweek", "pickup_month", "is_weekend", 
-                "is_rush_hour", "passenger_count", "traffic_period", 
-                "PULocationID", "DOLocationID", "VendorID"]
-    df[int_cols] = df[int_cols].astype(np.int32)
+    X = df[feature_cols].reset_index(drop=True)
+    y = df["duration_min"].values
     
-    return df[feature_cols], df["duration_min"]
+    return X, y
 
 def main():
     print("Starting retraining pipeline...")
