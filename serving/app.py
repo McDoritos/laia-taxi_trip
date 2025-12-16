@@ -90,6 +90,8 @@ def predict():
     json_input = request.get_json()
     if 'data' not in json_input:
         return jsonify({"error": "Missing 'data' in request"}), 400
+    
+    request_id = json_input.get("request_id")
 
     df = pd.DataFrame(json_input['data'])
 
@@ -127,11 +129,7 @@ def predict():
 
     predictions = model.predict(X)
 
-    if "request_id" in df.columns:
-        log_df = pd.concat([df[["request_id"]], X], axis=1)
-    else:
-        log_df = X.copy()
-        log_df["request_id"] = None
+    log_df = X.copy()
     log_inference(log_df, predictions)
 
     return jsonify({"predictions": predictions.tolist()})

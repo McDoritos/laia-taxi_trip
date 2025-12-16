@@ -1,0 +1,41 @@
+name: 6 - Pulling Live Dataset
+run-name: "${{ github.workflow }}"
+
+permissions: write-all
+
+on:
+  schedule:
+    - cron: "0 8 * * *" 
+  workflow_dispatch:
+
+jobs:
+  - name: Pull live logs from Flask VM
+    uses: appleboy/ssh-action@v1.0.3
+    with:
+      host: ${{ secrets.SSH_HOST }}
+      username: ${{ secrets.SSH_USER }}
+      key: ${{ secrets.SSH_KEY }}
+      script: |
+        mkdir -p /tmp/live_logs
+        cp /home/admin/Desktop/Flask/logs/inference_logs.jsonl /tmp/live_logs/
+        cp /home/admin/Desktop/Flask/logs/labels.jsonl /tmp/live_logs/
+
+  - name: Copy logs from VM to runner
+    run: |
+      mkdir -p data/live_logs
+      scp -i <(echo "${{ secrets.SSH_KEY }}") \
+        -o StrictHostKeyChecking=no \
+        ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/tmp/live_logs/*.jsonl \
+        data/live_logs/
+
+  - name: Build retraining dataset
+    run: |
+      python scripts/build_retraining_dataset.py
+
+  - name: Version retraining dataset with DVC
+    run: |
+      dvc add data/retraining_dataset.parquet
+      git add data/retraining_dataset.parquet.dvc .gitignore
+      git commit -m "Add live retraining dataset"
+      git push
+      dvc push
