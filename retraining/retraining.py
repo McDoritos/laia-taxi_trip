@@ -37,7 +37,7 @@ def load_parquet_data(path, sample_frac=1.0):
     """
     dfs = []
     
-    # Check if path is a file or directory
+    # Handle single file vs directory
     if os.path.isfile(path):
         files = [path]
     elif os.path.isdir(path):
@@ -54,10 +54,10 @@ def load_parquet_data(path, sample_frac=1.0):
     
     for fpath in files:
         try:
-            # We only read columns that actually exist in the file to avoid schema errors
+            # Read file
             df = pd.read_parquet(fpath, engine="pyarrow")
             
-            # Optional: Sample historical data if it's too huge
+            # Sample if requested (useful for large historical datasets)
             if sample_frac < 1.0:
                 df = df.sample(frac=sample_frac, random_state=42)
             
@@ -72,40 +72,67 @@ def load_parquet_data(path, sample_frac=1.0):
 
 def preprocess_data(df):
     """
-    Applies all feature engineering and cleaning to a raw dataframe.
+    Applies feature engineering ONLY if features are missing.
+    Normalizes target variable name.
     """
     if df.empty:
         return df, None
     
-    pickup_col = "tpep_pickup_datetime"
-    dropoff_col = "tpep_dropoff_datetime"
-    df[pickup_col] = pd.to_datetime(df[pickup_col], errors="coerce")
-    df[dropoff_col] = pd.to_datetime(df[dropoff_col], errors="coerce")
+    print("--- Preprocessing Data ---")
     
-    df["duration_min"] = (df[dropoff_col] - df[pickup_col]).dt.total_seconds() / 60.0
+    # 1. NORMALIZE TARGET (Calculate duration_min if missing)
+    if "duration_min" not in df.columns:
+        print("Calculating 'duration_min' from timestamps (Historical Data detected)...")
+        # Ensure timestamp columns are datetime objects
+        df["tpep_pickup_datetime"] = pd.to_datetime(df["tpep_pickup_datetime"])
+        df["tpep_dropoff_datetime"] = pd.to_datetime(df["tpep_dropoff_datetime"])
+        
+        # Calculate duration in minutes
+        df["duration_min"] = (df["tpep_dropoff_datetime"] - df["tpep_pickup_datetime"]).dt.total_seconds() / 60.0
+    
+    # Filter invalid durations (standard cleaning)
     df = df[(df["duration_min"] > 0) & (df["duration_min"] <= 24 * 60)]
 
-    df["pickup_hour"] = df[pickup_col].dt.hour
-    df["pickup_dayofweek"] = df[pickup_col].dt.weekday
-    df["pickup_month"] = df[pickup_col].dt.month
-    df["is_weekend"] = df["pickup_dayofweek"].isin([5, 6]).astype(int)
-    df["is_rush_hour"] = df["pickup_hour"].isin([7, 8, 9, 16, 17, 18, 19]).astype(int)
-    df["traffic_period"] = df["pickup_hour"].apply(traffic_period).astype(np.int32)
+    # 2. FEATURE ENGINEERING (Skip if already present)
+    # Check if 'pickup_hour' exists to decide if we need to engineer features
+    if "pickup_hour" not in df.columns:
+        print("Engineering time features (Historical Data detected)...")
+        # Ensure we have the base column
+        if "tpep_pickup_datetime" not in df.columns:
+             # Fallback for some datasets that use 'pickup_datetime'
+             if "pickup_datetime" in df.columns:
+                 df["tpep_pickup_datetime"] = pd.to_datetime(df["pickup_datetime"])
+        
+        df["pickup_hour"] = df["tpep_pickup_datetime"].dt.hour
+        df["pickup_dayofweek"] = df["tpep_pickup_datetime"].dt.weekday
+        df["pickup_month"] = df["tpep_pickup_datetime"].dt.month
+        
+        df["is_weekend"] = df["pickup_dayofweek"].isin([5, 6]).astype(int)
+        df["is_rush_hour"] = df["pickup_hour"].isin([7, 8, 9, 16, 17, 18, 19]).astype(int)
+        df["traffic_period"] = df["pickup_hour"].apply(traffic_period).astype(np.int32)
+    else:
+        print("Features already present (Live Data detected). Skipping generation.")
 
-    
+    # 3. TYPE CASTING & SAFETY (Apply to ALL data)
+    # Ensure ID columns are numeric (handle errors/NaNs)
     id_cols = ["PULocationID", "DOLocationID", "VendorID"]
     for col in id_cols:
+        if col not in df.columns: df[col] = -1 # Handle missing columns if any
         df[col] = pd.to_numeric(df[col], errors='coerce').fillna(-1).astype(np.int32)
 
+    # Ensure Feature columns are numeric
     int_cols = ["pickup_hour", "pickup_dayofweek", "pickup_month", 
                 "is_weekend", "is_rush_hour", "passenger_count", "traffic_period"]
     for col in int_cols:
+        if col not in df.columns: df[col] = 0
         df[col] = df[col].fillna(0).astype(np.int32)
 
     float_cols = ["trip_distance"]
     for col in float_cols:
+         if col not in df.columns: df[col] = 0.0
          df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0.0).astype(np.float64)
 
+    # 4. SELECT FINAL COLUMNS
     feature_cols = [
         "VendorID",
         "trip_distance",
@@ -119,6 +146,11 @@ def preprocess_data(df):
         "PULocationID",
         "DOLocationID",
     ]
+
+    # Verify all columns exist before returning
+    missing_cols = [c for c in feature_cols if c not in df.columns]
+    if missing_cols:
+        raise ValueError(f"Missing columns after preprocessing: {missing_cols}")
 
     X = df[feature_cols].reset_index(drop=True)
     y = df["duration_min"].values
