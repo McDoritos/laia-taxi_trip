@@ -1,0 +1,106 @@
+name: 7 - Retraining
+run-name: "${{ github.workflow }} - Triggered by Data Update"
+
+permissions: write-all
+
+on:
+  workflow_run:
+    workflows: ["6 - Pulling Live Dataset"]
+    types: [completed]
+    branches: [main]
+
+env:
+  REGISTRY: ${{ vars.REGISTRY }}
+
+jobs:
+  check_condition:
+    runs-on: self-hosted
+    outputs:
+      should_run: ${{ steps.check.outputs.result }}
+    steps:
+      - name: Check trigger conclusion
+        id: check
+        run: |
+          if [ "${{ github.event.workflow_run.conclusion }}" == "success" ]; then
+            echo "result=true" >> $GITHUB_OUTPUT
+          else
+            echo "result=false" >> $GITHUB_OUTPUT
+          fi
+
+  retrain_model:
+    needs: check_condition
+    if: needs.check_condition.outputs.should_run == 'true'
+    runs-on: self-hosted
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Get full history for versioning/tagging if needed
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      # --- 1. PREPARE DATA (ON HOST) ---
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.13" }
+
+      - name: Install DVC (Host)
+        run: pip install uv "dvc[ssh]"
+
+      - name: Setup SSH for DVC
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DVC_SSH_KEY }}" > ~/.ssh/dvc_runner_key
+          chmod 600 ~/.ssh/dvc_runner_key
+          echo "Host the-traffickers-internal.dei.uc.pt
+              IdentityFile ~/.ssh/dvc_runner_key
+              StrictHostKeyChecking no" >> ~/.ssh/config
+
+      - name: Pull Latest Data
+        run: |
+          # Pull data to the runner's filesystem so we can mount it
+          dvc pull -v --jobs 1 data/retraining_dataset.parquet.dvc Dataset/2013.dvc
+
+      # --- 2. BUILD NEW IMAGE ---
+      - name: Build Retraining Image
+        run: |
+          docker build -t retraining-image:latest -f training/Dockerfile .
+
+      # --- 3. RUN RETRAINING ---
+      - name: Run Retraining inside Docker
+        env:
+          MLFLOW_TRACKING_URI: ${{ vars.MLFLOW_TRACKING_URI }}
+          MLFLOW_EXPERIMENT_NAME: ${{ vars.MLFLOW_EXPERIMENT_NAME }}
+          MLFLOW_MODEL_NAME: ${{ vars.MLFLOW_MODEL_NAME }}
+          
+          # Path inside the container (mapped via -v below)
+          PATH_DATASET: /app/data/retraining_dataset.parquet
+          COMMIT_SHA: ${{ github.sha }}
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}/data:/app/data \
+            -v ${{ github.workspace }}/scripts:/app/scripts \
+            -e PATH_DATASET \
+            -e MLFLOW_TRACKING_URI \
+            -e MLFLOW_MODEL_NAME \
+            -e MLFLOW_EXPERIMENT_NAME \
+            -e COMMIT_SHA \
+            retraining-image:latest \
+            python scripts/retrain_model.py
+  stage-tests:
+    runs-on: self-hosted
+    if: needs.check_condition.outputs.should_run == 'true'
+    steps:
+      - name: Check Data Path
+        run: |
+          echo "Checking contents of workspace..."
+          ls -F
+          echo "Checking contents of Dataset folder..."
+          ls -F Dataset/ || echo "WARNING: Dataset folder not found in root!"
+      - name: Run A/B Test
+        env:
+          MLFLOW_TRACKING_URI: ${{ env.MLFLOW_TRACKING_URI }}
+          MLFLOW_MODEL_NAME: ${{ env.MLFLOW_MODEL_NAME }}
+          PROD_ALIAS: production
+          STAGING_ALIAS: staging
+          VALIDATION_DATA: Dataset/2013
+        run: uv run python tests/test_ab.py
+        continue-on-error: true

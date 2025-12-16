@@ -4,16 +4,63 @@ run-name: "${{ github.workflow }}"
 permissions: write-all
 
 on:
-  schedule:
-    - cron: "0 8 * * *" 
-  workflow_dispatch:
+  workflow_run:
+    workflows: ["5 - Daily Drift Check"]
+    types: [completed]
+    branches: [main]
 
 jobs:
-  pull_live_dataset:
+  check_for_drift:
+    runs-on: self-hosted
+    outputs:
+      drift_found: ${{ steps.check.outputs.result }}
+    steps:
+      - name: Check if drift artifact exists
+        id: check
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const artifacts = await github.rest.actions.listWorkflowRunArtifacts({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: context.payload.workflow_run.id,
+            });
+            const drift = artifacts.data.artifacts.find(a => a.name === 'drift-detected');
+            return drift ? 'true' : 'false';
+          result-encoding: string
+
+  pull_and_version:
+    needs: check_for_drift
+    if: needs.check_for_drift.outputs.drift_found == 'true'
     runs-on: self-hosted
     steps:
       - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.13" }
+
+      # Install dependencies including DVC with SSH support
+      - run: pip install uv "dvc[ssh]" pandas pyarrow
+
+      # --- SSH SETUP FROM YOUR REFERENCE FILE ---
+      - name: Setup SSH for DVC
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DVC_SSH_KEY }}" > ~/.ssh/dvc_runner_key
+          chmod 600 ~/.ssh/dvc_runner_key
+
+          # Configure SSH to use this key for your internal host
+          echo "Host the-traffickers-internal.dei.uc.pt
+              IdentityFile ~/.ssh/dvc_runner_key
+              StrictHostKeyChecking no" >> ~/.ssh/config
+
+      - name: Clean DVC Cache
+        run: |
+          echo "Cleaning .dvc/cache to prevent corruption..."
+          rm -rf .dvc/cache
+      # ------------------------------------------
       - name: Pull live logs from Flask VM
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -22,25 +69,39 @@ jobs:
           key: ${{ secrets.SSH_KEY }}
           script: |
             mkdir -p /tmp/live_logs
+            # Copy logs to a temp location so we can download them
             cp /home/admin/Desktop/Flask/logs/inference_logs.jsonl /tmp/live_logs/
             cp /home/admin/Desktop/Flask/logs/labels.jsonl /tmp/live_logs/
 
       - name: Copy logs from VM to runner
         run: |
           mkdir -p data/live_logs
-          scp -i <(echo "${{ secrets.SSH_KEY }}") \
-            -o StrictHostKeyChecking=no \
+          # Create temporary key for SCP
+          echo "${{ secrets.SSH_KEY }}" > private_key.pem
+          chmod 600 private_key.pem
+
+          scp -i private_key.pem -o StrictHostKeyChecking=no \
             ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/tmp/live_logs/*.jsonl \
             data/live_logs/
 
+          rm private_key.pem
+
       - name: Build retraining dataset
-        run: |
-          python scripts/build_retraining_dataset.py
+        run: python scripts/build_retraining_dataset.py
 
       - name: Version retraining dataset with DVC
         run: |
+          # Git Identity is required for the commit
+          git config --global user.name "GitHub Action"
+          git config --global user.email "action@github.com"
+
+          # 1. Add new data to DVC
           dvc add data/retraining_dataset.parquet
-          git add data/retraining_dataset.parquet.dvc .gitignore
-          git commit -m "Add live retraining dataset"
-          git push
+
+          # 2. Push data to remote storage (Uses the SSH setup from earlier)
           dvc push
+
+          # 3. Commit the DVC pointer file to Git
+          git add data/retraining_dataset.parquet.dvc .gitignore
+          git commit -m "Add live retraining dataset [skip ci]"
+          git push
