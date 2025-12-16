@@ -25,9 +25,9 @@ inf['seq_id'] = inf.groupby('request_id').cumcount()
 # B. Labels: Deduplicate unique request_ids (keep last), then EXPLODE the list
 labels = labels.drop_duplicates(subset=['request_id'], keep='last')
 
-# Assuming the column with the list is named 'true_duration' based on your later rename code. 
-# If it is named 'labels', change 'true_duration' to 'labels' below.
-labels_exploded = labels.explode('true_duration')
+# Assuming the column with the list is named 'labels' based on your later rename code. 
+# If it is named 'labels', change 'labels' to 'labels' below.
+labels_exploded = labels.explode('labels')
 
 # Assign sequence number to the exploded labels so they match the inference rows
 labels_exploded['seq_id'] = labels_exploded.groupby('request_id').cumcount()
