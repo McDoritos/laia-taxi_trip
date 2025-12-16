@@ -97,6 +97,7 @@ def predict():
         return jsonify({"error": "Missing 'data' in request"}), 400
 
     df = pd.DataFrame(json_input['data'])
+    request_id = json_input.get("request_id")
 
     df["tpep_pickup_datetime"] = pd.to_datetime(df["tpep_pickup_datetime"], errors="coerce")
     df["pickup_hour"] = df["tpep_pickup_datetime"].dt.hour
@@ -131,12 +132,10 @@ def predict():
     X = df[feature_cols]
 
     predictions = model.predict(X)
-    if "request_id" in df.columns:
-        log_df = pd.concat([df[["request_id"]], X], axis=1)
-    else:
-        # Create empty request_id column to keep schema stable
-        log_df = X.copy()
-        log_df["request_id"] = None
+
+    log_df = X.copy()
+    log_df["request_id"] = request_id
+
     log_inference(log_df, predictions)
 
     return jsonify({"predictions": predictions.tolist()})
