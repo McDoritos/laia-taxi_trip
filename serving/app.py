@@ -64,8 +64,8 @@ def health():
     return jsonify(status="healthy", model_loaded=app.config["MODEL"] is not None)
 
 @app.route('/labels', methods=['POST'])
-def submit_labels(payload):
-    payload = request.get_json()
+def submit_labels():
+    payload = request.get_json(silent=True)
 
     record = {
         "request_id": payload["request_id"],
@@ -83,6 +83,11 @@ def submit_labels(payload):
 
 @app.route('/predict', methods=['POST'])
 def predict():
+
+    app.logger.info(
+            f"PATH={request.path} BODY={request.get_json(silent=True)}"
+        )
+    
     model = app.config.get("MODEL")
     if model is None:
         return jsonify({"error": "Model is not loaded. Check /health or logs."}), 503
