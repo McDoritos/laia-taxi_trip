@@ -69,7 +69,7 @@ def submit_labels(payload):
 
     record = {
         "request_id": payload["request_id"],
-        "payload": payload,
+        "labels": payload["labels"],
     }
 
     with open(LABELS_LOG, "a", encoding="utf-8") as f:
@@ -90,8 +90,6 @@ def predict():
     json_input = request.get_json()
     if 'data' not in json_input:
         return jsonify({"error": "Missing 'data' in request"}), 400
-    
-    request_id = json_input.get("request_id")
 
     df = pd.DataFrame(json_input['data'])
 
@@ -128,8 +126,12 @@ def predict():
     X = df[feature_cols]
 
     predictions = model.predict(X)
-
-    log_df = X.copy()
+    if "request_id" in df.columns:
+        log_df = pd.concat([df[["request_id"]], X], axis=1)
+    else:
+        # Create empty request_id column to keep schema stable
+        log_df = X.copy()
+        log_df["request_id"] = None
     log_inference(log_df, predictions)
 
     return jsonify({"predictions": predictions.tolist()})
