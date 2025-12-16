@@ -64,7 +64,7 @@ def read_and_process_2013(root=None, sample_frac_per_file=0.05):
     ]
 
     if root is None:
-        root = os.environ.get("PATH_DATASET", "/app/Dataset/2013")
+        root = os.environ.get("PATH_PAST_DATA", "/app/Dataset/2013")
 
     pattern = os.path.join(root, "**", "yellow_tripdata_*.parquet")
     files = sorted(glob.glob(pattern, recursive=True))
