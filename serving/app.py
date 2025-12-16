@@ -123,15 +123,15 @@ def predict():
         "pickup_hour", "pickup_dayofweek", "pickup_month",
         "is_weekend", "is_rush_hour", "traffic_period", "PULocationID", "DOLocationID"
     ]
-    
-    meta_cols = ["request_id"]
-
     X = df[feature_cols]
 
     predictions = model.predict(X)
 
-    
-    log_df = pd.concat([df[meta_cols], X], axis=1)
+    if "request_id" in df.columns:
+        log_df = pd.concat([df[["request_id"]], X], axis=1)
+    else:
+        log_df = X.copy()
+        log_df["request_id"] = None
     log_inference(log_df, predictions)
 
     return jsonify({"predictions": predictions.tolist()})
