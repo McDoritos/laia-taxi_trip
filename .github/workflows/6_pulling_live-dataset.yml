@@ -88,7 +88,7 @@ jobs:
           rm private_key.pem
 
       - name: Build retraining dataset
-        run: python training/build_retraining_dataset.py
+        run: python retraining/build_retraining_dataset.py
 
       - name: Version retraining dataset with DVC
         run: |

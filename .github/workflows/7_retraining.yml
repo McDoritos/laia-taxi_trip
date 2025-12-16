@@ -64,7 +64,7 @@ jobs:
 
       - name: Build Retraining Image
         run: |
-          docker build -t retraining-image:latest -f training/Dockerfile .
+          docker build -t retraining-image:latest -f retraining/Dockerfile .
 
       - name: Run Retraining inside Docker
         env:
@@ -83,7 +83,7 @@ jobs:
             -e MLFLOW_EXPERIMENT_NAME \
             -e COMMIT_SHA \
             retraining-image:latest \
-            python scripts/retrain_model.py
+            python retraining/retraining.py
 
   stage-tests:
     runs-on: self-hosted
