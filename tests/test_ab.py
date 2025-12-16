@@ -7,18 +7,28 @@ import mlflow.pyfunc
 from sklearn.metrics import mean_squared_error
 import pyarrow.parquet as pq
 
-# --- Config ---
+
 MODEL_NAME = os.getenv("MLFLOW_MODEL_NAME")
 ALIAS_A = os.getenv("PROD_ALIAS", "production")
 ALIAS_B = os.getenv("STAGING_ALIAS", "staging")
-DATA_ROOT = os.getenv("VALIDATION_DATA", "Dataset/2013")  # folder, not a single file
+DATA_ROOT = os.getenv("VALIDATION_DATA", "Dataset/2013")
 
-# --- Helper to read dataset ---
+
+def traffic_period(hour: int) -> int:
+    """
+    0 = low traffic
+    1 = medium traffic
+    2 = high traffic 
+    """
+    if 5 <= hour <= 7:
+        return 0 
+    elif (9 <= hour <= 15) or (17 <= hour <= 18):
+        return 2
+    else:
+        return 1
+
+# Reads parquet files and returns X, y for training.
 def read_dataset(root=None, sample_frac_per_file=0.05):
-    """
-    Read parquet files and return X, y for training.
-    ALIGNED with app.py /predict endpoint handling of NaNs and types.
-    """
     use_cols = [
         "tpep_pickup_datetime", 
         "trip_distance",
@@ -51,7 +61,7 @@ def read_dataset(root=None, sample_frac_per_file=0.05):
 
     df = pd.concat(dfs, ignore_index=True)
 
-    # --- Target Calculation ---
+    # Target Calcs
     pickup_col = "tpep_pickup_datetime"
     dropoff_col = "tpep_dropoff_datetime"
     df[pickup_col] = pd.to_datetime(df[pickup_col], errors="coerce")
@@ -60,27 +70,23 @@ def read_dataset(root=None, sample_frac_per_file=0.05):
     df["duration_min"] = (df[dropoff_col] - df[pickup_col]).dt.total_seconds() / 60.0
     df = df[(df["duration_min"] > 0) & (df["duration_min"] <= 24 * 60)]
 
-    # --- Derived Features ---
     df["pickup_hour"] = df[pickup_col].dt.hour
     df["pickup_dayofweek"] = df[pickup_col].dt.weekday
     df["pickup_month"] = df[pickup_col].dt.month
     df["is_weekend"] = df["pickup_dayofweek"].isin([5, 6]).astype(int)
     df["is_rush_hour"] = df["pickup_hour"].isin([7, 8, 9, 16, 17, 18, 19]).astype(int)
+    df["traffic_period"] = df["pickup_hour"].apply(traffic_period).astype(np.int32)
 
-    
-    # 1. ID Columns -> Fill NaN with -1
+
     id_cols = ["PULocationID", "DOLocationID", "VendorID"]
     for col in id_cols:
-        # Coerce to numeric first (handles strings like "161"), then fillna(-1), then int32
         df[col] = pd.to_numeric(df[col], errors='coerce').fillna(-1).astype(np.int32)
 
-    # 2. Count/Integer Columns -> Fill NaN with 0
     int_cols = ["pickup_hour", "pickup_dayofweek", "pickup_month", 
-                "is_weekend", "is_rush_hour", "passenger_count"]
+                "is_weekend", "is_rush_hour", "passenger_count", "traffic_period"]
     for col in int_cols:
         df[col] = df[col].fillna(0).astype(np.int32)
 
-    # 3. Float Columns -> Fill NaN with 0.0
     float_cols = ["trip_distance"]
     for col in float_cols:
          df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0.0).astype(np.float64)
@@ -96,6 +102,7 @@ def read_dataset(root=None, sample_frac_per_file=0.05):
         "is_rush_hour",
         "PULocationID",
         "DOLocationID",
+        "traffic_period",
     ]
 
     X = df[feature_cols].reset_index(drop=True)
@@ -103,19 +110,15 @@ def read_dataset(root=None, sample_frac_per_file=0.05):
     
     return X, y
 
-# --- Load validation dataset ---
 X_val, y_val = read_dataset(DATA_ROOT)
 
-# --- Load models ---
 client = MlflowClient(tracking_uri=os.getenv("MLFLOW_TRACKING_URI"))
 model_a = mlflow.pyfunc.load_model(f"models:/{MODEL_NAME}@{ALIAS_A}")
 model_b = mlflow.pyfunc.load_model(f"models:/{MODEL_NAME}@{ALIAS_B}")
 
-# --- Predictions ---
 y_pred_a = model_a.predict(X_val)
 y_pred_b = model_b.predict(X_val)
 
-# --- Metrics ---
 rmse_a = np.sqrt(mean_squared_error(y_val, y_pred_a))
 rmse_b = np.sqrt(mean_squared_error(y_val, y_pred_b))
 

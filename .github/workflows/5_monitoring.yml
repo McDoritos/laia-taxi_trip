@@ -4,7 +4,7 @@ permissions: write-all
 
 on:
   schedule:
-    - cron: "0 8 * * *" # Run every day at 8am
+    - cron: "0 8 * * *" 
   workflow_dispatch:
 
 env:
@@ -30,14 +30,13 @@ jobs:
               IdentityFile ~/.ssh/dvc_runner_key
               StrictHostKeyChecking no" >> ~/.ssh/config
 
-      # 2. DOWNLOAD LOGS
-      # Changed: Specific file download (safer than *) and removed -r
+   
       - name: Download Logs
         run: |
           mkdir -p logs
           scp ${{ secrets.SSH_USER }}@the-traffickers-internal.dei.uc.pt:/home/admin/Desktop/Flask/serving/logs/inference_logs.jsonl ./logs/ || echo "No logs found"
 
-      # 3. BUILD & RUN DOCKER CONTAINER
+
       - name: Run Drift Check in Docker
         env:
           MLFLOW_TRACKING_USERNAME: ${{ secrets.MLFLOW_USERNAME }}

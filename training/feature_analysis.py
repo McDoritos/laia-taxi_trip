@@ -67,7 +67,6 @@ def read_taxi_data_for_analysis(
     df["duration_min"] = (df[dropoff_col] - df[pickup_col]).dt.total_seconds() / 60.0
     df = df[(df["duration_min"] > 0) & (df["duration_min"] <= 24 * 60)]
 
-    # --- Derived Features ---
     df["pickup_hour"] = df[pickup_col].dt.hour
     df["pickup_dayofweek"] = df[pickup_col].dt.weekday
     df["pickup_month"] = df[pickup_col].dt.month
@@ -76,19 +75,15 @@ def read_taxi_data_for_analysis(
     df["traffic_period"] = df["pickup_hour"].apply(traffic_period).astype(np.int32)
 
     
-    # 1. ID Columns -> Fill NaN with -1
     id_cols = ["PULocationID", "DOLocationID", "VendorID"]
     for col in id_cols:
-        # Coerce to numeric first (handles strings like "161"), then fillna(-1), then int32
         df[col] = pd.to_numeric(df[col], errors='coerce').fillna(-1).astype(np.int32)
 
-    # 2. Count/Integer Columns -> Fill NaN with 0
     int_cols = ["pickup_hour", "pickup_dayofweek", "pickup_month", 
                 "is_weekend", "is_rush_hour", "passenger_count"]
     for col in int_cols:
         df[col] = df[col].fillna(0).astype(np.int32)
 
-    # 3. Float Columns -> Fill NaN with 0.0
     float_cols = ["trip_distance"]
     for col in float_cols:
          df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0.0).astype(np.float64)
@@ -217,10 +212,7 @@ plt.title("Average Trip Duration by Traffic Period")
 plt.tight_layout()
 plt.show()
 
-
-# ===============================
-# TARGET DISTRIBUTION
-# ===============================
+#Target distribution
 plt.figure(figsize=(8, 5))
 sns.histplot(df["duration_min"], bins=100, kde=True)
 plt.xlim(0, 120)
@@ -230,7 +222,6 @@ plt.ylabel("Count")
 plt.tight_layout()
 plt.show()
 
-# Log-scale version (very important for modeling)
 df["log_duration"] = np.log1p(df["duration_min"])
 
 plt.figure(figsize=(8, 5))

@@ -4,7 +4,6 @@ run-name: "${{ github.workflow }}"
 permissions: write-all
 
 on:
-  # Runs when the previous stage finished
   workflow_run:
     workflows: ["2 - Continuous Delivery"]
     types: [completed]
@@ -19,7 +18,6 @@ env:
 
 jobs:
   stage-tests:
-    # Run only if previous stage finished successfully
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: self-hosted
 
@@ -49,7 +47,6 @@ jobs:
         with: { python-version: "3.13" }
       - run: pip install uv
 
-      # Log in to GitHub Container Registry (GHCR)
       - uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
@@ -59,7 +56,6 @@ jobs:
       - if: env.API_CHANGED == 'true'
         run: docker pull ${{ env.REGISTRY }}/mcdoritos/laia-taxi_trip/serving:staging
 
-      # Cleanup old serving container if it exists
       - name: Cleanup old serving container
         if: env.API_CHANGED == 'true'
         run: |
@@ -84,16 +80,14 @@ jobs:
             -e MLFLOW_MODEL_NAME \
             ${{ env.REGISTRY }}/mcdoritos/laia-taxi_trip/serving:staging
 
-      # Run E2E tests
       - name: Run Staging tests
         if: env.API_CHANGED == 'true'
         env:
           FLASK_BASE_URL: http://localhost:9001
         run: uv run pytest tests/test_e2e.py -v
 
-      # --- NEW STEP TO FIX PERMISSIONS ---
-      # This runs even if tests fail (if: always)
-      # It changes ownership of the 'logs' directory back to the runner user
+
+      # Changes ownership of the 'logs' directory back to the runner user
       - name: Fix log permissions
         if: always()
         run: |
@@ -102,7 +96,7 @@ jobs:
             alpine sh -c "chown -R $(id -u):$(id -g) /clean_logs"
       
 
-      # Tag the serving image with production tag
+      # Tagging the serving image with production tag
       - name: Push production container tag
         if: env.API_CHANGED == 'true'
         run: |

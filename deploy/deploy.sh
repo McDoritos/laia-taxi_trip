@@ -1,10 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# -------------------------------
-# 1. Accept Arguments
-# -------------------------------
-# We expect 4 arguments in this specific order
+
 if [ "$#" -ne 4 ]; then
     echo "Usage: $0 GITHUB_USERNAME GITHUB_TOKEN MLFLOW_TRACKING_URI MLFLOW_MODEL_NAME"
     exit 1
@@ -15,23 +12,19 @@ GITHUB_TOKEN="$2"
 MLFLOW_TRACKING_URI="$3"
 MLFLOW_MODEL_NAME="$4"
 
-# -------------------------------
-# 2. Config
-# -------------------------------
+
 REGISTRY="ghcr.io"
 IMAGE_NAME="mcdoritos/laia-taxi_trip/serving"
 ALIAS="production"
 
-# -------------------------------
-# 3. Deployment Logic
-# -------------------------------
+
 echo "Logging into GHCR..."
 echo "$GITHUB_TOKEN" | docker login "$REGISTRY" -u "$GITHUB_USERNAME" --password-stdin
 
 echo "Pulling production image..."
 docker pull "$REGISTRY/$IMAGE_NAME:$ALIAS"
 
-# Stop existing container if running
+
 if docker ps -q -f name=serving-app >/dev/null; then
     echo "Stopping existing container..."
     docker stop serving-app || true
@@ -42,10 +35,10 @@ fi
 
 echo "Starting new serving-app container..."
 
-# Create logs directory on host
+
 mkdir -p /home/admin/Desktop/Flask/serving/logs
 
-# Run with Volume Mapping & Env Vars
+
 docker run -d \
   --name serving-app \
   --restart always \

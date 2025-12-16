@@ -1,8 +1,3 @@
-"""
-Promote latest staging MLflow model version to production.
-Intended to run after staging tests succeed.
-"""
-
 import os
 from mlflow.tracking import MlflowClient
 
@@ -26,7 +21,6 @@ def promote_model():
     print(f"Connecting to MLflow at {mlflow_uri}")
     client = MlflowClient(tracking_uri=mlflow_uri)
 
-    # Get model versions under the staging alias
     versions = client.get_model_version_by_alias(model_name, from_alias)
     if not versions:
         raise RuntimeError(f"No model tagged '{from_alias}' found for {model_name}")
@@ -34,7 +28,7 @@ def promote_model():
     version = versions.version
     print(f"Found {model_name} version {version} under alias '{from_alias}'")
 
-    # Promote
+
     client.set_registered_model_alias(
         name=model_name, alias=to_alias, version=version
     )

@@ -1,4 +1,3 @@
-"""End-to-end tests for the complete ML pipeline."""
 import pytest
 import requests
 import json
@@ -6,10 +5,8 @@ import time
 import os
 
 FLASK_BASE_URL = os.getenv("FLASK_BASE_URL", "http://localhost:9001")
-# MLflow is remote, not tested directly in E2E
 
 def wait_for_service(url, timeout=30, interval=2):
-    """Wait for a service to be available."""
     start_time = time.time()
     while time.time() - start_time < timeout:
         try:
@@ -44,7 +41,6 @@ SAMPLE_FEATURES = [
 
 
 def test_flask_health():
-    """Test that Flask API is healthy."""
     response = requests.get(f"{FLASK_BASE_URL}/health")
     assert response.status_code == 200
     data = response.json()
@@ -52,16 +48,13 @@ def test_flask_health():
 
 
 def test_flask_model_loaded():
-    """Test that Flask API has a model loaded."""
     response = requests.get(f"{FLASK_BASE_URL}/health")
     data = response.json()
     
-    # If model is not loaded, try to reload it
     if not data.get('model_loaded', False):
         reload_response = requests.get(f"{FLASK_BASE_URL}/reload")
         assert reload_response.status_code == 200
         
-        # Check again
         response = requests.get(f"{FLASK_BASE_URL}/health")
         data = response.json()
     
@@ -108,30 +101,22 @@ def test_prediction_multiple_samples():
         assert isinstance(p, (float, int))
 
 def test_prediction_without_model():
-    """Test that prediction fails gracefully when model is not loaded."""
-    # This test assumes we can manipulate the model state, which we can't in e2e
-    # So we'll just verify the error handling works when service is down
     pass
 
 
 def test_model_reload():
-    """Test that model can be reloaded."""
     response = requests.get(f"{FLASK_BASE_URL}/reload")
     assert response.status_code == 200
     data = response.json()
     assert 'message' in data or 'error' in data
-    
-    # Verify model is loaded after reload
+
     health_response = requests.get(f"{FLASK_BASE_URL}/health")
     health_data = health_response.json()
     assert health_data['model_loaded'] is True
 
 def test_api_error_handling():
-    """Test API error handling with invalid input."""
-    # Test with missing columns
     invalid_payload = {
         "data": [[5.1, 3.5, 1.4, 0.2]]
-        # Missing 'columns' key
     }
     
     response = requests.post(
@@ -139,14 +124,10 @@ def test_api_error_handling():
         json=invalid_payload,
         headers={"Content-Type": "application/json"}
     )
-    
-    # Should fail with 400 or 500
     assert response.status_code in [400, 500]
 
 
 def test_concurrent_predictions():
-    """Test that API can handle concurrent taxi prediction requests."""
-    # Ensure model is loaded
     health_response = requests.get(f"{FLASK_BASE_URL}/health")
     health_data = health_response.json()
 

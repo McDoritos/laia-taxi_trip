@@ -2,14 +2,10 @@ FROM python:3.13-slim
 
 WORKDIR /app
 
-# Install dependencies
 RUN pip install uv
 
-# ADDED 'sniffio' to fix the ModuleNotFoundError
 RUN uv pip install --system mlflow pandas evidently pyarrow requests scikit-learn sniffio
 
-# Copy your monitoring code into the container
 COPY monitoring/ ./monitoring/
 
-# Default command
 CMD ["python", "monitoring/check_drift.py"]
