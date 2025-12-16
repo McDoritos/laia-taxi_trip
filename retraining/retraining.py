@@ -31,50 +31,61 @@ def traffic_period(hour: int) -> int:
     elif (9 <= hour <= 15) or (17 <= hour <= 18): return 2 
     else: return 1
 
-def load_parquet_data(path, sample_frac=1.0):
-    """
-    Helper to load parquet data from a single file or a directory of files.
-    """
-    dfs = []
-    
-    # Handle single file vs directory
-    if os.path.isfile(path):
-        files = [path]
-    elif os.path.isdir(path):
-        files = glob.glob(os.path.join(path, "*.parquet"))
-    else:
-        print(f"Warning: Path not found {path}")
-        return pd.DataFrame()
-
-    if not files:
-        print(f"Warning: No parquet files found in {path}")
-        return pd.DataFrame()
-
-    print(f"Loading data from {path} ({len(files)} files)...")
-    
-    for fpath in files:
-        try:
-            # Read file
-            df = pd.read_parquet(fpath, engine="pyarrow")
-            
-            # Sample if requested (useful for large historical datasets)
-            if sample_frac < 1.0:
-                df = df.sample(frac=sample_frac, random_state=42)
-            
-            dfs.append(df)
-        except Exception as e:
-            print(f"Skipping bad file {fpath}: {e}")
-
-    if not dfs:
-        return pd.DataFrame()
+def read_retraining(path, sample_frac=1.0):
+    use_cols = [
+        "VendorID", 
+        "trip_distance",
+        "passenger_count",
+        "pickup_hour",
+        "pickup_dayofweek",
+        "pickup_month",
+        "is_weekend",
+        "is_rush_hour",
+        "traffic_period",
+        "PULocationID",
+        "DOLocationID",
+        "duration_min"
+    ]
+    df = pd.read_parquet(path, columns=use_cols)
+    if sample_frac < 1.0:
+        df = df.sample(frac=sample_frac)
         
-    return pd.concat(dfs, ignore_index=True)
+    return df
 
-def preprocess_data(df):
-    """
-    Applies feature engineering ONLY if features are missing.
-    Normalizes target variable name.
-    """
+def read_and_process_2013(root=None, sample_frac_per_file=0.05):
+    use_cols = [
+        "tpep_pickup_datetime", 
+        "trip_distance",
+        "passenger_count",
+        "PULocationID",
+        "DOLocationID",
+        "tpep_dropoff_datetime",
+        "VendorID"
+    ]
+
+    if root is None:
+        root = os.environ.get("PATH_DATASET", "/app/Dataset/2013")
+
+    pattern = os.path.join(root, "**", "yellow_tripdata_*.parquet")
+    files = sorted(glob.glob(pattern, recursive=True))
+    if not files:
+        raise FileNotFoundError(f"No parquet files found under {root}")
+
+    dfs = []
+    for fpath in files:
+        print(f"reading file: {fpath}")
+        df = pd.read_parquet(
+            fpath,
+            engine="pyarrow",
+            columns=[c for c in use_cols if c in pq.ParquetFile(fpath).schema.names],
+        )
+        if sample_frac_per_file and 0 < sample_frac_per_file < 1:
+            df = df.sample(frac=sample_frac_per_file, random_state=123)
+        dfs.append(df)
+
+    df = pd.concat(dfs, ignore_index=True)
+
+    # Target Calcs
     pickup_col = "tpep_pickup_datetime"
     dropoff_col = "tpep_dropoff_datetime"
     df[pickup_col] = pd.to_datetime(df[pickup_col], errors="coerce")
@@ -90,7 +101,7 @@ def preprocess_data(df):
     df["is_rush_hour"] = df["pickup_hour"].isin([7, 8, 9, 16, 17, 18, 19]).astype(int)
     df["traffic_period"] = df["pickup_hour"].apply(traffic_period).astype(np.int32)
 
-    
+
     id_cols = ["PULocationID", "DOLocationID", "VendorID"]
     for col in id_cols:
         df[col] = pd.to_numeric(df[col], errors='coerce').fillna(-1).astype(np.int32)
@@ -104,8 +115,22 @@ def preprocess_data(df):
     for col in float_cols:
          df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0.0).astype(np.float64)
 
+    feature_cols = [
+        "VendorID",
+        "trip_distance",
+        "passenger_count",
+        "pickup_hour",
+        "pickup_dayofweek",
+        "pickup_month",
+        "is_weekend",
+        "is_rush_hour",
+        "PULocationID",
+        "DOLocationID",
+        "traffic_period",
+    ]
+
     return df
-    
+
 def get_X_Y(df):
     feature_cols = [
         "VendorID",
@@ -116,11 +141,10 @@ def get_X_Y(df):
         "pickup_month",
         "is_weekend",
         "is_rush_hour",
-        "traffic_period",
         "PULocationID",
         "DOLocationID",
+        "traffic_period",
     ]
-
     X = df[feature_cols].reset_index(drop=True)
     y = df["duration_min"].values
     
@@ -130,17 +154,10 @@ def main():
     print("Starting retraining pipeline...")
 
     # 1. Load BOTH Datasets
-    # Load Live Data (Keep 100% of it)
     print("--- Loading Live Data ---")
-    df_live = load_parquet_data(PATH_LIVE_DATA, sample_frac=1.0)
-    
-    # Load Past Data (Sample 20% to avoid overwhelming the model with old data, adjust as needed)
+    df_live = read_retraining(PATH_LIVE_DATA, sample_frac=1.0)
     print("--- Loading Past Data ---")
-    df_past = load_parquet_data(PATH_PAST_DATA, sample_frac=0.2) # Adjusted sample_frac
-    if df_live.empty and df_past.empty:
-        raise ValueError("No data found in either Live or Past paths!")
-    
-    df_past = preprocess_data(df_past)
+    df_past = read_and_process_2013(PATH_PAST_DATA, sample_frac=0.2)
     
     df_combined = pd.concat([df_past, df_live], ignore_index=True)
 
