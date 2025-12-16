@@ -13,22 +13,27 @@ env:
   REGISTRY: ${{ vars.REGISTRY }}
 
 jobs:
-  check_condition:
+  check_for_drift:
     runs-on: self-hosted
     outputs:
-      should_run: ${{ steps.check.outputs.result }}
+      drift_found: ${{ steps.check.outputs.result }}
     steps:
-      - name: Check trigger conclusion
+      - name: Check if drift artifact exists
         id: check
-        run: |
-          if [ "${{ github.event.workflow_run.conclusion }}" == "success" ]; then
-            echo "result=true" >> $GITHUB_OUTPUT
-          else
-            echo "result=false" >> $GITHUB_OUTPUT
-          fi
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const artifacts = await github.rest.actions.listWorkflowRunArtifacts({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: context.payload.workflow_run.id,
+            });
+            const drift = artifacts.data.artifacts.find(a => a.name === 'drift-detected');
+            return drift ? 'true' : 'false';
+          result-encoding: string
 
   retrain_model:
-    needs: check_condition
+    needs: check_for_drift
     if: needs.check_condition.outputs.should_run == 'true'
     runs-on: self-hosted
     steps:
@@ -70,7 +75,7 @@ jobs:
           MLFLOW_TRACKING_URI: ${{ vars.MLFLOW_TRACKING_URI }}
           MLFLOW_EXPERIMENT_NAME: ${{ vars.MLFLOW_EXPERIMENT_NAME }}
           MLFLOW_MODEL_NAME: ${{ vars.MLFLOW_MODEL_NAME }}
-          
+
           # Path inside the container (mapped via -v below)
           PATH_DATASET: /app/data/retraining_dataset.parquet
           COMMIT_SHA: ${{ github.sha }}
@@ -104,3 +109,41 @@ jobs:
           VALIDATION_DATA: Dataset/2013
         run: uv run python tests/test_ab.py
         continue-on-error: true
+  cleanup:
+    runs-on: self-hosted
+    if: needs.check_condition.outputs.should_run == 'true'
+    steps:
+      - name: Delete Drift Signal Artifact
+        if: always() # Run even if retraining fails, or use 'success()' if you prefer
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const artifactName = 'drift-detected';
+
+            console.log(`Searching for artifacts named '${artifactName}'...`);
+
+            // 1. Find all artifacts with this name in the repo
+            const artifacts = await github.rest.actions.listArtifactsForRepo({
+              owner,
+              repo,
+              name: artifactName,
+            });
+
+            if (artifacts.data.artifacts.length === 0) {
+              console.log("No artifacts found to delete.");
+              return;
+            }
+
+            // 2. Delete them
+            for (const artifact of artifacts.data.artifacts) {
+              console.log(`Deleting artifact ID ${artifact.id} (created at ${artifact.created_at})`);
+              
+              await github.rest.actions.deleteArtifact({
+                owner,
+                repo,
+                artifact_id: artifact.id,
+              });
+            }
+            console.log("Cleanup complete.");
