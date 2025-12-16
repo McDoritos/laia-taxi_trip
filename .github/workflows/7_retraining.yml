@@ -126,6 +126,19 @@ jobs:
           VALIDATION_DATA: Dataset/2013
         run: uv run python tests/test_ab.py
         continue-on-error: true
+
+      - name: Promote model to staging
+        if: steps.ab_test.conclusion == 'success'
+        env:
+          MLFLOW_TRACKING_URI: ${{ env.MLFLOW_TRACKING_URI }}
+          MLFLOW_TRACKING_USERNAME: ${{ secrets.MLFLOW_USERNAME }}
+          MLFLOW_TRACKING_PASSWORD: ${{ secrets.MLFLOW_PASSWORD }}
+          MLFLOW_EXPERIMENT_NAME: ${{ env.MLFLOW_EXPERIMENT_NAME }}
+          MLFLOW_MODEL_NAME: ${{ env.MLFLOW_MODEL_NAME }}
+          FROM_ALIAS: staging
+          TO_ALIAS: production
+        run: uv run python model-promotion/promote_model.py
+        
   cleanup:
     runs-on: self-hosted
     needs: [check_for_drift, stage-tests]
