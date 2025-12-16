@@ -71,7 +71,8 @@ jobs:
           MLFLOW_TRACKING_URI: ${{ vars.MLFLOW_TRACKING_URI }}
           MLFLOW_EXPERIMENT_NAME: ${{ vars.MLFLOW_EXPERIMENT_NAME }}
           MLFLOW_MODEL_NAME: ${{ vars.MLFLOW_MODEL_NAME }}
-          PATH_DATASET: /app/data/retraining_dataset.parquet
+          PATH_LIVE_DATA: /app/data/retraining_dataset.parquet
+          PATH_PAST_DATA: Dataset/2013
           COMMIT_SHA: ${{ github.sha }}
         run: |
           docker run --rm \
@@ -82,6 +83,8 @@ jobs:
             -e MLFLOW_MODEL_NAME \
             -e MLFLOW_EXPERIMENT_NAME \
             -e COMMIT_SHA \
+            -e PATH_LIVE_DATA \
+            -e PATH_PAST_DATA \
             retraining-image:latest \
             python retraining/retraining.py
 
