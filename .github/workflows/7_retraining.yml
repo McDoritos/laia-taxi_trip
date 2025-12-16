@@ -66,27 +66,28 @@ jobs:
         run: |
           docker build -t retraining-image:latest -f retraining/Dockerfile .
 
-      - name: Run Retraining inside Docker
-        env:
-          MLFLOW_TRACKING_URI: ${{ vars.MLFLOW_TRACKING_URI }}
-          MLFLOW_EXPERIMENT_NAME: ${{ vars.MLFLOW_EXPERIMENT_NAME }}
-          MLFLOW_MODEL_NAME: ${{ vars.MLFLOW_MODEL_NAME }}
-          PATH_LIVE_DATA: /app/data/retraining_dataset.parquet
-          PATH_PAST_DATA: Dataset/2013
-          COMMIT_SHA: ${{ github.sha }}
-        run: |
-          docker run --rm \
-            -v ${{ github.workspace }}/data:/app/data \
-            -v ${{ github.workspace }}/scripts:/app/scripts \
-            -e PATH_DATASET \
-            -e MLFLOW_TRACKING_URI \
-            -e MLFLOW_MODEL_NAME \
-            -e MLFLOW_EXPERIMENT_NAME \
-            -e COMMIT_SHA \
-            -e PATH_LIVE_DATA \
-            -e PATH_PAST_DATA \
-            retraining-image:latest \
-            python retraining/retraining.py
+          - name: Run Retraining inside Docker
+          env:
+            MLFLOW_TRACKING_URI: ${{ vars.MLFLOW_TRACKING_URI }}
+            MLFLOW_EXPERIMENT_NAME: ${{ vars.MLFLOW_EXPERIMENT_NAME }}
+            MLFLOW_MODEL_NAME: ${{ vars.MLFLOW_MODEL_NAME }}
+            PATH_LIVE_DATA: /app/data/retraining_dataset.parquet
+            PATH_PAST_DATA: Dataset/2013
+            COMMIT_SHA: ${{ github.sha }}
+          run: |
+            docker run --rm \
+              -v ${{ github.workspace }}/data:/app/data \
+              -v ${{ github.workspace }}/scripts:/app/retraining \
+              -v ${{ github.workspace }}/Dataset:/app/Dataset \
+              -e PATH_DATASET \
+              -e MLFLOW_TRACKING_URI \
+              -e MLFLOW_MODEL_NAME \
+              -e MLFLOW_EXPERIMENT_NAME \
+              -e COMMIT_SHA \
+              -e PATH_LIVE_DATA \
+              -e PATH_PAST_DATA \
+              retraining-image:latest \
+              python retraining/retraining.py
 
   stage-tests:
     runs-on: self-hosted
