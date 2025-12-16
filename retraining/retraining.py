@@ -171,7 +171,7 @@ def main():
                             "VendorID", "traffic_period"]
 
     # 2. Start MLflow Run
-    with mlflow.start_run(run_name=f"Retrain_{COMMIT_SHA}") as run:
+    with mlflow.start_run(run_name=f"LightGBM_Retraining") as run:
         params = {
             "n_estimators": 800,
             "learning_rate": 0.1,
@@ -234,6 +234,11 @@ def main():
         client.set_registered_model_alias(
             name=MODEL_NAME,
             alias="staging",
+            version=registered_model.version
+        )
+        client.set_registered_model_alias(
+            name=MODEL_NAME,
+            alias=COMMIT_SHA,
             version=registered_model.version
         )
         print(f"Model version {registered_model.version} promoted to alias 'staging'")

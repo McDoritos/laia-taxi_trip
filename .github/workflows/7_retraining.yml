@@ -91,23 +91,21 @@ jobs:
 
   stage-tests:
     runs-on: self-hosted
-    needs: retrain_model # FIXED: Ensures this runs AFTER retraining
+    needs: retrain_model
     steps:
-      - name: Check Data Path
-        run: |
-          echo "Checking contents of workspace..."
-          ls -F
-          echo "Checking contents of Dataset folder..."
-          ls -F Dataset/ || echo "WARNING: Dataset folder not found in root!"
-      - name: Run A/B Test
+      - name: stage-tests
         env:
-          MLFLOW_TRACKING_URI: ${{ env.MLFLOW_TRACKING_URI }}
-          MLFLOW_MODEL_NAME: ${{ env.MLFLOW_MODEL_NAME }}
-          PROD_ALIAS: production
-          STAGING_ALIAS: staging
-          VALIDATION_DATA: Dataset/2013
-        run: uv run python tests/test_ab.py
-        continue-on-error: true
+          MLFLOW_TRACKING_URI: ${{ vars.MLFLOW_TRACKING_URI }}
+          MLFLOW_EXPERIMENT_NAME: ${{ vars.MLFLOW_EXPERIMENT_NAME }}
+          MLFLOW_MODEL_NAME: ${{ vars.MLFLOW_MODEL_NAME }}
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/app \
+            -e MLFLOW_TRACKING_URI \
+            -e MLFLOW_EXPERIMENT_NAME \
+            -e MLFLOW_MODEL_NAME \
+            retraining-image:latest \
+            uv run test_ab.py
 
   cleanup:
     runs-on: self-hosted
