@@ -70,8 +70,9 @@ jobs:
           script: |
             mkdir -p /tmp/live_logs
             # Copy logs to a temp location so we can download them
-            cp /home/admin/Desktop/Flask/logs/inference_logs.jsonl /tmp/live_logs/
-            cp /home/admin/Desktop/Flask/logs/labels.jsonl /tmp/live_logs/
+            # UPDATED PATHS BELOW:
+            cp /home/admin/Desktop/Flask/serving/logs/inference_logs.jsonl /tmp/live_logs/
+            cp /home/admin/Desktop/Flask/serving/logs/labels.jsonl /tmp/live_logs/
 
       - name: Copy logs from VM to runner
         run: |
