@@ -16,6 +16,9 @@ HTML_REPORT_FILE = "drift_report.html"
 JSON_REPORT_FILE = "drift_report.json"
 
 def check_drift():
+    if os.environ.get('DRY_RUN') == 'true':
+        print("DRY_RUN ACTIVATED: Simulating data drift detection.")
+        sys.exit(10)
     print("1. Loading Current Data...")
     if not os.path.exists(LOG_FILE):
         print(f"File {LOG_FILE} not found.")

@@ -1,9 +1,6 @@
 import pandas as pd
 import os
 
-import pandas as pd
-import numpy as np
-
 # 1. Load Data
 inf = pd.read_json("data/live_logs/inference_logs.jsonl", lines=True)
 labels = pd.read_json("data/live_logs/labels.jsonl", lines=True)
