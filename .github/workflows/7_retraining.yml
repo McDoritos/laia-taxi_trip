@@ -102,7 +102,20 @@ jobs:
         with: { python-version: "3.13" }
 
       - name: Install dependencies
-        run: pip install uv
+        run: pip install uv "dvc[ssh]"
+
+      - name: Setup SSH for DVC
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DVC_SSH_KEY }}" > ~/.ssh/dvc_runner_key
+          chmod 600 ~/.ssh/dvc_runner_key
+          echo "Host the-traffickers-internal.dei.uc.pt
+              IdentityFile ~/.ssh/dvc_runner_key
+              StrictHostKeyChecking no" >> ~/.ssh/config
+
+      - name: Pull Latest Data
+        run: |
+          dvc pull -v --jobs 1 Dataset/2013.dvc
 
       - name: Run A/B Test
         env:
