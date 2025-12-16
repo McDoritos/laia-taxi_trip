@@ -157,7 +157,7 @@ def main():
     print("--- Loading Live Data ---")
     df_live = read_retraining(PATH_LIVE_DATA, sample_frac=1.0)
     print("--- Loading Past Data ---")
-    df_past = read_and_process_2013(PATH_PAST_DATA, sample_frac=0.2)
+    df_past = read_and_process_2013(PATH_PAST_DATA, sample_frac_per_file=0.05)
     
     df_combined = pd.concat([df_past, df_live], ignore_index=True)
 
