@@ -6,6 +6,7 @@ import os
 import json
 
 LOG_FILE = "logs/inference_logs.jsonl"
+LABELS_LOG = "logs/labels.jsonl"
 
 def log_inference(df: pd.DataFrame, predictions):
     """Log each inference request and prediction to a JSONL file."""
@@ -64,6 +65,24 @@ def model_info():
 def health():
     return jsonify(status="healthy", model_loaded=app.config["MODEL"] is not None)
 
+@app.route('/labels', methods=['POST'])
+def submit_labels(payload):
+    payload = request.get_json()
+
+    record = {
+        "request_id": payload["request_id"],
+        "payload": payload,
+    }
+
+    with open(LABELS_LOG, "a", encoding="utf-8") as f:
+        f.write(json.dumps(record) + "\n")
+
+    return jsonify({
+        "message": "Label received",
+        "request_id": payload["request_id"]
+        }), 200
+
+
 @app.route('/predict', methods=['POST'])
 def predict():
     model = app.config.get("MODEL")
@@ -110,10 +129,15 @@ def predict():
         "is_weekend", "is_rush_hour", "traffic_period", "PULocationID", "DOLocationID"
     ]
     
+    meta_cols = ["request_id"]
+
     X = df[feature_cols]
 
     predictions = model.predict(X)
-    log_inference(X, predictions)
+
+    
+    log_df = pd.concat([df[meta_cols], X], axis=1)
+    log_inference(log_df, predictions)
 
     return jsonify({"predictions": predictions.tolist()})
 
