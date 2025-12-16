@@ -19,7 +19,6 @@ MODEL_NAME = os.getenv('MLFLOW_MODEL_NAME', 'laia-taxi-model')
 EXP_NAME = os.getenv('MLFLOW_EXPERIMENT_NAME', 'laia-taxi-retraining')
 TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI", "https://the-traffickers.dei.uc.pt:9002")
 
-# We now define TWO paths: one for live data, one for historical
 PATH_LIVE_DATA = os.getenv('PATH_DATASET', "data/retraining_dataset.parquet")
 PATH_PAST_DATA = os.getenv('PATH_PAST_DATA', "Dataset/2013") 
 
