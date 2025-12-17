@@ -44,7 +44,6 @@ jobs:
       # Install dependencies including DVC with SSH support
       - run: pip install uv "dvc[ssh]" pandas pyarrow
 
-      # --- SSH SETUP FROM YOUR REFERENCE FILE ---
       - name: Setup SSH for DVC
         run: |
           mkdir -p ~/.ssh
